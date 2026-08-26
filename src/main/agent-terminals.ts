@@ -23,7 +23,8 @@ export class AgentTerminalManager {
   create(params: Record<string, any>, fallbackCwd: string): { terminalId: string } {
     const command = typeof params.command === "string" ? params.command : "";
     if (!command) throw new Error("terminal/create requires a command");
-    const args = Array.isArray(params.args)
+    const hasExplicitArgs = Array.isArray(params.args);
+    const args = hasExplicitArgs
       ? params.args.filter((value: unknown): value is string => typeof value === "string")
       : [];
     const env = { ...process.env };
@@ -32,7 +33,12 @@ export class AgentTerminalManager {
     }
     delete env.ELECTRON_RUN_AS_NODE;
     const cwd = typeof params.cwd === "string" && params.cwd.startsWith("/") ? params.cwd : fallbackCwd;
-    const child = spawn(command, args, { cwd, env, shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    // Grok sends shell-form commands such as `/bin/bash -lc pwd` without an
+    // `args` field. ACP also permits executable + args clients, so retain
+    // direct spawning when that field is explicitly present.
+    const child = hasExplicitArgs
+      ? spawn(command, args, { cwd, env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      : spawn(command, { cwd, env, shell: true, stdio: ["ignore", "pipe", "pipe"] });
     const terminal: AgentTerminal = {
       id: `term_${randomUUID()}`,
       sessionId: typeof params.sessionId === "string" ? params.sessionId : "",
