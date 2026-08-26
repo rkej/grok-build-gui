@@ -37,12 +37,14 @@
     "SF Pro Text",
     "Segoe UI",
     sans-serif;
+  --font-sans: var(--font-ui);
   --font-mono:
     ui-monospace,
     "SF Mono",
     "Cascadia Code",
     "Consolas",
     monospace;
+  --font-scale: 1;
   --border: var(--line);
   --ink: var(--text);
   --ink-strong: var(--text-strong);
@@ -173,6 +175,10 @@ body,
   height: 100%;
   margin: 0;
   background: transparent;
+}
+
+html {
+  zoom: var(--font-scale, 1);
 }
 
 body {
