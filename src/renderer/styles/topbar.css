@@ -21,6 +21,28 @@
   min-width: 0;
 }
 
+.topbar__leading,
+.topbar__history {
+  display: flex;
+  align-items: center;
+}
+
+.topbar__leading {
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar__history {
+  -webkit-app-region: no-drag;
+  gap: 2px;
+  flex: none;
+}
+
+.topbar__history .topbar__icon {
+  width: 26px;
+  height: 26px;
+}
+
 .environment-picker,
 .environment-picker * {
   -webkit-app-region: no-drag;

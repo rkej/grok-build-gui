@@ -8,4 +8,6 @@ export const SHORTCUTS = [
   { keys: "Mod+J", action: "Toggle terminal" },
   { keys: "Mod+F", action: "Find in thread" },
   { keys: "Mod+Shift+R", action: "Rename current thread" },
+  { keys: "Mod+[", action: "Previous thread" },
+  { keys: "Mod+]", action: "Next thread" },
 ] as const;

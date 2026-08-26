@@ -1,6 +1,6 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { AppView, SessionSummary } from "../shared/protocol";
-import { DiffIcon, FileIcon, PromptRailIcon, TerminalIcon } from "./icons";
+import { ArrowLeftIcon, ArrowRightIcon, DiffIcon, FileIcon, PromptRailIcon, TerminalIcon } from "./icons";
 
 export function Topbar({
   view,
@@ -20,6 +20,10 @@ export function Topbar({
   promptRailVisible,
   onTogglePromptRail,
   panelsAvailable = true,
+  canGoBack,
+  canGoForward,
+  onGoBack,
+  onGoForward,
 }: {
   readonly view: AppView;
   readonly workspaceName: string;
@@ -38,6 +42,10 @@ export function Topbar({
   readonly promptRailVisible: boolean;
   readonly onTogglePromptRail: () => void;
   readonly panelsAvailable?: boolean;
+  readonly canGoBack: boolean;
+  readonly canGoForward: boolean;
+  readonly onGoBack: () => void;
+  readonly onGoForward: () => void;
 }) {
   const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
   const mod = isMac ? "⌘" : "Ctrl+";
@@ -48,8 +56,25 @@ export function Topbar({
 
   return (
     <header className="topbar" data-testid="topbar" onDoubleClick={onTitleDoubleClick}>
-      <div className="topbar__title">
-        <span className="topbar__workspace">{workspaceName || "Open a folder to begin"}</span>
+      <div className="topbar__leading">
+        <nav className="topbar__history" aria-label="Thread history">
+          <TopbarActionButton
+            disabled={!canGoBack}
+            icon={<ArrowLeftIcon />}
+            label="Previous thread"
+            shortcut={`${mod}[`}
+            onClick={onGoBack}
+          />
+          <TopbarActionButton
+            disabled={!canGoForward}
+            icon={<ArrowRightIcon />}
+            label="Next thread"
+            shortcut={`${mod}]`}
+            onClick={onGoForward}
+          />
+        </nav>
+        <div className="topbar__title">
+          <span className="topbar__workspace">{workspaceName || "Open a folder to begin"}</span>
         {(view === "threads" || view === "new-thread") && (
           <>
             <span className="topbar__separator">/</span>
@@ -91,6 +116,7 @@ export function Topbar({
             <span className="topbar__session">New thread</span>
           </>
         ) : null}
+        </div>
       </div>
 
       <div className="topbar__actions">
