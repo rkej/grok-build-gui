@@ -25,6 +25,7 @@ export const ipc = {
   reorderPinned: "gb:reorder-pinned",
   findInThread: "gb:find-in-thread",
   openSettings: "gb:open-settings",
+  openNewThread: "gb:open-new-thread",
   toggleWindowMaximize: "gb:toggle-window-maximize",
   extensionUiRespond: "gb:extension-ui-respond",
   compact: "gb:compact",

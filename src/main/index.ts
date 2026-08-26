@@ -121,13 +121,7 @@ function installMenu(): void {
         {
           label: "New Thread",
           accelerator: "CmdOrCtrl+N",
-          click: () => {
-            if (!store.auth.authenticated) {
-              void store.login();
-              return;
-            }
-            void store.newSession();
-          },
+          click: () => win?.webContents.send(ipc.openNewThread),
         },
         { label: "Open Folder", accelerator: "CmdOrCtrl+O", click: () => void pickFolder() },
         { type: "separator" },

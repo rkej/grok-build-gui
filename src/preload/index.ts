@@ -49,6 +49,7 @@ export type GrokDesktopApi = {
   respondExtensionUi: (response: ExtensionUiResponse) => Promise<void>;
   onFindInThread: (listener: () => void) => () => void;
   onOpenSettings: (listener: () => void) => () => void;
+  onOpenNewThread: (listener: () => void) => () => void;
   toggleWindowMaximize: () => Promise<void>;
   pin: (sessionId: string, pinned: boolean) => Promise<void>;
   archive: (sessionId: string, archived: boolean) => Promise<void>;
@@ -129,6 +130,11 @@ const api: GrokDesktopApi = {
     const handler = () => listener();
     ipcRenderer.on(ipc.openSettings, handler);
     return () => ipcRenderer.removeListener(ipc.openSettings, handler);
+  },
+  onOpenNewThread: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(ipc.openNewThread, handler);
+    return () => ipcRenderer.removeListener(ipc.openNewThread, handler);
   },
   toggleWindowMaximize: () => ipcRenderer.invoke(ipc.toggleWindowMaximize),
   pin: (sessionId, pinned) => ipcRenderer.invoke(ipc.pin, sessionId, pinned),

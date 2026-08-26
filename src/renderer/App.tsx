@@ -349,8 +349,7 @@ export default function App() {
       await startNew(text, promptAttachments);
       return;
     }
-    if (!text) return;
-    if (text.startsWith("/")) {
+    if (text.startsWith("/") && promptAttachments.length === 0) {
       const [name, ...rest] = text.slice(1).split(/\s+/);
       setDraft("");
       closeSlashMenus();
@@ -573,10 +572,16 @@ export default function App() {
       setView("settings");
       setSettingsSection("general");
     });
+    const unsubNewThread = api.onOpenNewThread(() => {
+      setView("new-thread");
+      setDraft("");
+      window.setTimeout(() => composerRef.current?.focus(), 0);
+    });
     return () => {
       window.removeEventListener("keydown", onKey);
       unsub();
       unsubSettings();
+      unsubNewThread();
     };
   }, [api, threadSearch, view]);
 
