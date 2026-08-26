@@ -1216,7 +1216,6 @@ export default function App() {
           <TerminalPanel
             cwd={state.cwd}
             fontFamily={resolvedMonoFontStack(state.gui.monoFontId)}
-            fontSize={Math.round(12 * resolvedFontScale(state.gui.fontScale))}
             height={terminalHeight}
             isTakeover={terminalTakeover}
             onHeightChange={(height) => {
