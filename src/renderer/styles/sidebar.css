@@ -569,6 +569,7 @@
   text-align: left;
   color: inherit;
   position: relative;
+  overflow: visible;
 }
 
 .session-row__leading {

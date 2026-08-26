@@ -164,18 +164,26 @@ export class AppStore extends EventEmitter {
       permissionMode: this.displayPermissionMode(),
       currentModeId: this.currentModeId,
       commands: this.commands,
-      sessions: this.sessions.map((s) => ({
-        ...s,
-        pinned: this.gui.pinned.includes(s.sessionId),
-        archived: this.gui.archived.includes(s.sessionId) || Boolean(s.archived),
-        unseen: sessionHasUnseenUpdate({
-          sessionId: s.sessionId,
-          activeSessionId: this.activeSessionId,
-          activity: s.activity,
-          updatedAt: s.updatedAt,
-          lastSeen: this.gui.lastSeen?.[s.sessionId],
-        }),
-      })),
+      sessions: this.sessions.map((s) => {
+        const activity = resolveSessionActivity(
+          s,
+          this.liveById.get(s.sessionId),
+          this.inFlightPrompts.has(s.sessionId),
+        );
+        return {
+          ...s,
+          activity,
+          pinned: this.gui.pinned.includes(s.sessionId),
+          archived: this.gui.archived.includes(s.sessionId) || Boolean(s.archived),
+          unseen: sessionHasUnseenUpdate({
+            sessionId: s.sessionId,
+            activeSessionId: this.activeSessionId,
+            activity,
+            updatedAt: s.updatedAt,
+            lastSeen: this.gui.lastSeen?.[s.sessionId],
+          }),
+        };
+      }),
       activeSessionId: this.activeSessionId,
       // The transcript travels over its own IPC channel. Keeping it out of the
       // general snapshot avoids cloning the entire chat on every state change.
@@ -445,7 +453,14 @@ export class AppStore extends EventEmitter {
         }
       }
       if (refreshSeq !== this.sessionsRefreshSeq) return;
-      this.sessions = sessions;
+      this.sessions = sessions.map((session) => ({
+        ...session,
+        activity: resolveSessionActivity(
+          session,
+          this.liveById.get(session.sessionId),
+          this.inFlightPrompts.has(session.sessionId),
+        ),
+      }));
     } catch (err) {
       if (refreshSeq !== this.sessionsRefreshSeq) return;
       if (this.maybeNoteAuthFailure(err)) return;
@@ -1650,7 +1665,8 @@ export class AppStore extends EventEmitter {
     }
     if (method === AcpMethod.XaiSessionsChanged) {
       for (const row of asArray<any>(params.upserted)) {
-        this.liveById.set(row.sessionId, row);
+        if (!row?.sessionId) continue;
+        this.liveById.set(row.sessionId, { ...(this.liveById.get(row.sessionId) ?? {}), ...row });
       }
       void this.refreshSessions().then(() => this.bump());
       return;

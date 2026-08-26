@@ -43,7 +43,7 @@ export function relTime(iso?: string | null): string {
 }
 
 function indicator(s: SessionSummary): "running" | "failed" | "unseen" | "none" {
-  if (s.activity === "working") return "running";
+  if (s.activity === "working" || s.activity === "running") return "running";
   if (s.activity === "failed") return "failed";
   if (s.unseen || s.activity === "needs-input" || s.activity === "blocked") return "unseen";
   return "none";

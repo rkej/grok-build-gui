@@ -36,8 +36,22 @@ export function sessionTitle(session: { title?: string; summary?: string; sessio
   return (session.title || session.summary || session.session_summary || "New thread").trim() || "New thread";
 }
 
+const TERMINAL_ACTIVITIES = new Set<SessionSummary["activity"]>([
+  "needs-input",
+  "blocked",
+  "completed",
+  "failed",
+]);
+
+function rawActivityField(
+  meta: { activity?: string; status?: string; state?: string } | undefined,
+): string | undefined {
+  const value = meta?.activity ?? meta?.status ?? meta?.state;
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 export function activityFromLive(meta: { activity?: string; status?: string; state?: string } | undefined): SessionSummary["activity"] {
-  const activity = meta?.activity ?? meta?.status ?? meta?.state;
+  const activity = rawActivityField(meta);
   if (activity === "running" || activity === "in_progress" || activity === "in-progress") return "working";
   if (activity === "working" || activity === "needs-input" || activity === "blocked" || activity === "completed" || activity === "failed") {
     return activity;
@@ -51,5 +65,10 @@ export function resolveSessionActivity(
   inFlight = false,
 ): SessionSummary["activity"] {
   if (inFlight) return "working";
-  return activityFromLive(live ?? listed);
+  const liveActivity = rawActivityField(live) ? activityFromLive(live) : null;
+  const listedActivity = activityFromLive(listed);
+  if (liveActivity && TERMINAL_ACTIVITIES.has(liveActivity)) return liveActivity;
+  if (liveActivity === "working" || listedActivity === "working") return "working";
+  if (liveActivity) return liveActivity;
+  return listedActivity;
 }
