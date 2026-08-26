@@ -27,6 +27,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Integrated terminal no longer spawns macOS `script` over pipes (`tcgetattr/ioctl: Operation not supported on socket`)
 - Attachment-only sends on an existing thread were dropped
 - Compact did not reload the on-disk transcript
 - Deleting a session left it in pin/archive lists

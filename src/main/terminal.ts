@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 
@@ -12,7 +12,7 @@ type PtyHandle = {
 
 const require = createRequire(import.meta.url);
 
-type PtySpawn = (
+export type PtySpawn = (
   file: string,
   args: string[] | string,
   options: {
@@ -24,6 +24,19 @@ type PtySpawn = (
   },
 ) => PtyHandle;
 
+export type TerminalSpawn = (
+  command: string,
+  args: string[],
+  options: SpawnOptionsWithoutStdio,
+) => ChildProcessWithoutNullStreams;
+
+export type TerminalHostOptions = {
+  ptySpawn?: PtySpawn | null;
+  spawn?: TerminalSpawn;
+  env?: NodeJS.ProcessEnv;
+  shell?: string;
+};
+
 function loadPtySpawn(): PtySpawn | null {
   try {
     const pty = require("node-pty") as { spawn?: PtySpawn };
@@ -33,15 +46,33 @@ function loadPtySpawn(): PtySpawn | null {
   }
 }
 
-const ptySpawn = loadPtySpawn();
+export function pipeFallbackLaunch(shell: string): { command: string; args: string[] } {
+  // BSD `script` calls tcgetattr(stdin). Electron stdio pipes are sockets, so
+  // `script -q /dev/null` always fails with "Operation not supported on socket".
+  return { command: shell, args: ["-l"] };
+}
+
+export function terminalChildEnv(source: NodeJS.ProcessEnv): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== undefined) env[key] = value;
+  }
+  delete env.ELECTRON_RUN_AS_NODE;
+  env.TERM = "xterm-256color";
+  env.COLORTERM = "truecolor";
+  return env;
+}
 
 export class TerminalHost {
   private child: ChildProcessWithoutNullStreams | null = null;
   private pty: PtyHandle | null = null;
+  private cachedPtySpawn: PtySpawn | null | undefined;
   cwd = "";
   cols = 80;
   rows = 24;
   usingPty = false;
+
+  constructor(private readonly options: TerminalHostOptions = {}) {}
 
   get running(): boolean {
     return Boolean(this.pty || (this.child && this.child.exitCode == null));
@@ -57,12 +88,9 @@ export class TerminalHost {
     this.cwd = cwd || homedir();
     this.cols = Math.max(2, Math.floor(size?.cols ?? this.cols));
     this.rows = Math.max(1, Math.floor(size?.rows ?? this.rows));
-    const shell = process.env.SHELL || "/bin/zsh";
-    const env = {
-      ...process.env,
-      TERM: "xterm-256color",
-      COLORTERM: "truecolor",
-    } as Record<string, string>;
+    const shell = this.options.shell ?? this.options.env?.SHELL ?? process.env.SHELL || "/bin/zsh";
+    const env = terminalChildEnv(this.options.env ?? process.env);
+    const ptySpawn = this.resolvePtySpawn();
 
     if (ptySpawn) {
       try {
@@ -91,17 +119,12 @@ export class TerminalHost {
     }
 
     this.usingPty = false;
-    const child = process.platform === "darwin"
-      ? spawn("script", ["-q", "/dev/null", shell, "-i"], {
-          cwd: this.cwd,
-          env,
-          stdio: ["pipe", "pipe", "pipe"],
-        })
-      : spawn(shell, ["-i"], {
-          cwd: this.cwd,
-          env,
-          stdio: ["pipe", "pipe", "pipe"],
-        });
+    const launch = pipeFallbackLaunch(shell);
+    const child = (this.options.spawn ?? spawn)(launch.command, launch.args, {
+      cwd: this.cwd,
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
     this.child = child;
     const emit = (buf: Buffer | string) => onData(typeof buf === "string" ? buf : buf.toString("utf8"));
@@ -160,5 +183,11 @@ export class TerminalHost {
         child.kill("SIGKILL");
       } catch {}
     }, 400);
+  }
+
+  private resolvePtySpawn(): PtySpawn | null {
+    if (this.options.ptySpawn !== undefined) return this.options.ptySpawn;
+    if (this.cachedPtySpawn === undefined) this.cachedPtySpawn = loadPtySpawn();
+    return this.cachedPtySpawn;
   }
 }
