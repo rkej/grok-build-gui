@@ -9,6 +9,7 @@ import { AcpMethod } from "../acp/methods.js";
 import type { JsonRpcMessage } from "../acp/rpc.js";
 import { asArray, unwrap } from "../shared/acp-util.js";
 import { authFromAuthenticateResult, checkingAuth, isAuthError, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
+import { rankFileMentions } from "../shared/file-mentions.js";
 import type {
   AppSnapshot,
   AccountUsage,
@@ -965,10 +966,7 @@ export class AppStore extends EventEmitter {
   }
 
   async fuzzySearch(query: string): Promise<unknown> {
-    if (!this.activeSessionId) return { files: [] };
-    return unwrap(
-      await this.client.request(AcpMethod.XaiFuzzyOpen, { sessionId: this.activeSessionId, query }),
-    );
+    return { files: rankFileMentions(this.listFiles(), query) };
   }
 
   async approvePermission(optionId: string): Promise<void> {
