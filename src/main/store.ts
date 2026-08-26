@@ -1331,10 +1331,11 @@ export class AppStore extends EventEmitter {
       this.loginChild = child;
       let output = "";
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (fn: () => void) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         this.loginChild = null;
         fn();
       };
@@ -1354,7 +1355,7 @@ export class AppStore extends EventEmitter {
       };
       child.stdout?.on("data", onData);
       child.stderr?.on("data", onData);
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         child.kill();
         finish(() => reject(new Error("Grok CLI login timed out. Try again.")));
       }, LOGIN_TIMEOUT_MS);
