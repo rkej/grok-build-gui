@@ -182,16 +182,28 @@ function AppearanceSection({
   themeMode,
   themePresetId,
   enableTransparency,
+  uiFontId,
+  monoFontId,
+  fontScale,
   onSetThemeMode,
   onSetThemePreset,
   onSetTransparency,
+  onSetUiFont,
+  onSetMonoFont,
+  onSetFontScale,
 }: {
   readonly themeMode: ThemeMode;
   readonly themePresetId: ThemePresetId;
   readonly enableTransparency: boolean;
+  readonly uiFontId: UiFontId;
+  readonly monoFontId: MonoFontId;
+  readonly fontScale: FontScale;
   readonly onSetThemeMode: (mode: ThemeMode) => void;
   readonly onSetThemePreset: (id: ThemePresetId) => void;
   readonly onSetTransparency: (enabled: boolean) => void;
+  readonly onSetUiFont: (id: UiFontId) => void;
+  readonly onSetMonoFont: (id: MonoFontId) => void;
+  readonly onSetFontScale: (scale: FontScale) => void;
 }) {
   return (
     <div className="settings-section">
@@ -223,6 +235,64 @@ function AppearanceSection({
             <input type="checkbox" checked={enableTransparency} onChange={(e) => onSetTransparency(e.target.checked)} />
             <span>Enable</span>
           </label>
+        </div>
+      </div>
+      <div className="settings-group">
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Interface font</div>
+            <div className="settings-row__description">Named fonts apply only if they are installed on this machine.</div>
+          </div>
+          <div className="settings-pill-row">
+            {UI_FONT_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={`settings-pill ${uiFontId === option.id ? "settings-pill--active" : ""}`}
+                type="button"
+                title={option.description}
+                onClick={() => onSetUiFont(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Code font</div>
+            <div className="settings-row__description">Used for the terminal, diffs, and inline code.</div>
+          </div>
+          <div className="settings-pill-row">
+            {MONO_FONT_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={`settings-pill ${monoFontId === option.id ? "settings-pill--active" : ""}`}
+                type="button"
+                title={option.description}
+                onClick={() => onSetMonoFont(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Size</div>
+            <div className="settings-row__description">Scales the whole shell, including the sidebar and composer.</div>
+          </div>
+          <div className="settings-pill-row">
+            {FONT_SCALE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={`settings-pill ${fontScale === option.id ? "settings-pill--active" : ""}`}
+                type="button"
+                onClick={() => onSetFontScale(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="settings-group">

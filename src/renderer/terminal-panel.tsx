@@ -9,6 +9,8 @@ const DEFAULT_TERMINAL_HEIGHT = 340;
 
 export function TerminalPanel({
   cwd,
+  fontFamily,
+  fontSize,
   height,
   isTakeover,
   onHeightChange,
@@ -16,6 +18,8 @@ export function TerminalPanel({
   onClose,
 }: {
   readonly cwd: string;
+  readonly fontFamily?: string;
+  readonly fontSize?: number;
   readonly height: number;
   readonly isTakeover: boolean;
   readonly onHeightChange: (height: number) => void;
@@ -50,8 +54,8 @@ export function TerminalPanel({
     const terminal = new Terminal({
       allowProposedApi: true,
       cursorBlink: true,
-      fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-      fontSize: 12,
+      fontFamily: fontFamily || 'ui-monospace, "SF Mono", Menlo, monospace',
+      fontSize: fontSize || 12,
       lineHeight: 1.35,
       scrollback: 5_000,
       theme: {
@@ -110,7 +114,7 @@ export function TerminalPanel({
       fitAddonRef.current = null;
       void window.grokApp.terminalStop();
     };
-  }, [cwd, fitAndResize, generation]);
+  }, [cwd, fitAndResize, fontFamily, fontSize, generation]);
 
   useEffect(() => {
     window.requestAnimationFrame(fitAndResize);

@@ -19,6 +19,7 @@ import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { SkillsView } from "./skills-view";
 import { TerminalPanel } from "./terminal-panel";
 import { TreeModal } from "./tree-modal";
+import { applyFontsToRoot, resolvedFontScale, resolvedMonoFontStack } from "./theme-fonts";
 import { applyThemePresetToRoot } from "./theme-presets";
 import { PlanStrip } from "./plan-card";
 import { sessionDisplayTitle, Topbar } from "./topbar";
@@ -164,11 +165,12 @@ export default function App() {
       document.documentElement.classList.toggle("dark", dark);
       applyThemePresetToRoot(document.documentElement, state?.gui.themePresetId ?? "default", dark ? "dark" : "light");
       document.documentElement.classList.toggle("enable-transparency", Boolean(state?.gui.enableTransparency));
+      applyFontsToRoot(document.documentElement, state?.gui.uiFontId, state?.gui.monoFontId, state?.gui.fontScale);
     };
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, [state?.gui.themeMode, state?.gui.themePresetId, state?.gui.enableTransparency]);
+  }, [state?.gui.themeMode, state?.gui.themePresetId, state?.gui.enableTransparency, state?.gui.uiFontId, state?.gui.monoFontId, state?.gui.fontScale]);
 
   useEffect(() => {
     setExpandedTools({});
@@ -952,6 +954,9 @@ export default function App() {
             onSetThemeMode={(mode: ThemeMode) => persistGui({ themeMode: mode })}
             onSetThemePreset={(id: ThemePresetId) => persistGui({ themePresetId: id })}
             onSetTransparency={(enabled) => persistGui({ enableTransparency: enabled })}
+            onSetUiFont={(id) => persistGui({ uiFontId: id })}
+            onSetMonoFont={(id) => persistGui({ monoFontId: id })}
+            onSetFontScale={(scale) => persistGui({ fontScale: scale })}
           />
         ) : null}
         {view === "skills" ? (
@@ -1210,6 +1215,8 @@ export default function App() {
         {showTerminal && view === "threads" ? (
           <TerminalPanel
             cwd={state.cwd}
+            fontFamily={resolvedMonoFontStack(state.gui.monoFontId)}
+            fontSize={Math.round(12 * resolvedFontScale(state.gui.fontScale))}
             height={terminalHeight}
             isTakeover={terminalTakeover}
             onHeightChange={(height) => {
