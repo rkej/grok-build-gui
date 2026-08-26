@@ -326,13 +326,17 @@ svg {
   width: 64px;
   min-width: 64px;
   padding: 0;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .button--cta-icon svg {
+  display: block;
   width: 18px;
   height: 18px;
+  flex: none;
 }
 
 .meta-chip {

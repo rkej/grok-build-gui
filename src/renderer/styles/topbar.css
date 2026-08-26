@@ -93,8 +93,10 @@
 
 .shortcut-tooltip-wrap {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }
 
 .topbar__icon {
@@ -169,6 +171,10 @@
 .titlebar-navigation__button {
   width: var(--titlebar-toggle-size);
   height: var(--titlebar-toggle-size);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-lg);
   color: var(--muted-soft);
   background: var(--surface-overlay-muted);

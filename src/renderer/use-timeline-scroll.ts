@@ -20,8 +20,6 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
   const pinnedRef = useRef(true);
   const intentUntilRef = useRef(0);
   const lastSessionRef = useRef<string | null>(null);
-  const savedScrollTopRef = useRef(new Map<string, number>());
-  const savedPinnedRef = useRef(new Map<string, boolean>());
   const markerRef = useRef("");
   const alignFrameRef = useRef<number | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -36,10 +34,6 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
     if (behavior === "smooth") pane.scrollTo({ top: pane.scrollHeight, behavior });
     else pane.scrollTop = pane.scrollHeight;
     pinnedRef.current = true;
-    if (sessionKey) {
-      savedScrollTopRef.current.set(sessionKey, pane.scrollTop);
-      savedPinnedRef.current.set(sessionKey, true);
-    }
     setShowJumpToLatest(false);
   }, [paneRef, sessionKey]);
 
@@ -61,8 +55,6 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
     }
 
     pinnedRef.current = pinned;
-    savedScrollTopRef.current.set(sessionKey, pane.scrollTop);
-    savedPinnedRef.current.set(sessionKey, pinned);
     setShowJumpToLatest(!pinned);
   }, [alignBottom, enabled, isNearBottom, paneRef, sessionKey]);
 
@@ -92,21 +84,9 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
 
     const sessionChanged = lastSessionRef.current !== sessionKey;
     if (sessionChanged) {
-      if (lastSessionRef.current) {
-        savedScrollTopRef.current.set(lastSessionRef.current, pane.scrollTop);
-        savedPinnedRef.current.set(lastSessionRef.current, isNearBottom(pane));
-      }
       lastSessionRef.current = sessionKey;
-      const savedTop = savedScrollTopRef.current.get(sessionKey);
-      const savedPinned = savedPinnedRef.current.get(sessionKey);
-      if (savedTop != null && savedPinned === false) {
-        pane.scrollTop = savedTop;
-        pinnedRef.current = false;
-        setShowJumpToLatest(true);
-      } else {
-        pinnedRef.current = true;
-        alignBottom();
-      }
+      pinnedRef.current = true;
+      alignBottom();
       markerRef.current = "";
       return;
     }
