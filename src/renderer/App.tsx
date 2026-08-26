@@ -19,7 +19,7 @@ import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { SkillsView } from "./skills-view";
 import { TerminalPanel } from "./terminal-panel";
 import { TreeModal } from "./tree-modal";
-import { applyFontsToRoot, resolvedFontScale, resolvedMonoFontStack } from "./theme-fonts";
+import { applyFontsToRoot, resolvedMonoFontStack } from "./theme-fonts";
 import { applyThemePresetToRoot } from "./theme-presets";
 import { PlanStrip } from "./plan-card";
 import { sessionDisplayTitle, Topbar } from "./topbar";
