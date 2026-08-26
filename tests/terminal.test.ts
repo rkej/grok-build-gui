@@ -81,14 +81,14 @@ test("TerminalHost pipe fallback never launches script", () => {
 
   const chunks: string[] = [];
   host.start("/tmp/workspace", (chunk) => chunks.push(chunk), () => {});
-  child.stderr.emit("data", Buffer.from("script: tcgetattr/ioctl: Operation not supported on socket\n"));
+  child.stdout.emit("data", Buffer.from("ok\n"));
   host.write("pwd\n");
   child.emit("exit", 0);
 
   assert.deepEqual(spawned, [{ command: "/bin/zsh", args: ["-l"] }]);
   assert.equal(host.usingPty, false);
   assert.equal(child.stdin.writes.join(""), "pwd\n");
-  assert.equal(chunks.some((chunk) => chunk.includes("tcgetattr")), true);
+  assert.deepEqual(chunks, ["ok\n"]);
 });
 
 class FakeChild extends EventEmitter {
