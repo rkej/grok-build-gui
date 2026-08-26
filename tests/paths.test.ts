@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
-import { posixPathWithDefaults } from "../src/main/paths.ts";
+import { posixPathWithDefaults } from "../src/main/paths.js";
 
 test("posixPathWithDefaults prepends grok and Homebrew bins", () => {
   const home = "/Users/demo";
