@@ -878,6 +878,13 @@
   font-size: 15px;
   min-height: 24px;
   max-height: 220px;
+  box-shadow: none;
+}
+
+.composer textarea:focus,
+.composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .composer__bar {
@@ -1020,6 +1027,7 @@
 .composer__attach {
   width: 32px;
   height: 32px;
+  padding: 0;
   border-radius: var(--radius-lg);
   color: var(--muted-soft);
   border: 1px solid var(--line);

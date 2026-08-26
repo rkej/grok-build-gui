@@ -143,10 +143,16 @@
   -webkit-app-region: no-drag;
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   color: var(--muted-strong);
+  line-height: 0;
+}
+
+.icon-button svg {
+  display: block;
 }
 
 .section__tools .icon-button {
