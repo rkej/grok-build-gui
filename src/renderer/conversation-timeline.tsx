@@ -98,7 +98,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
   const hasUnreliableVirtualizedHeights = items.some(
     (item) =>
       (item.kind === "user" || item.kind === "assistant")
-      && (item.text.length > 2000 || Boolean(item.attachments?.length)),
+      && (item.text.length > 2000 || (item.kind === "user" && Boolean(item.attachments?.length))),
   );
   const shouldVirtualize =
     !searchOpen && visibleItems.length > VIRTUALIZATION_THRESHOLD && !hasUnreliableVirtualizedHeights;
