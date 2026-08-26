@@ -32,7 +32,10 @@ export class GrokAcpClient extends EventEmitter {
 
   async start(): Promise<void> {
     if (this.rpc) return;
-    const env = { ...process.env, GROK_SANDBOX: process.env.GROK_SANDBOX || "off" };
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      GROK_SANDBOX: process.env.GROK_SANDBOX || "off",
+    };
     delete env.ELECTRON_RUN_AS_NODE;
     this.proc = spawn(this.grokBin, ["agent", "--no-leader", "stdio"], {
       stdio: ["pipe", "pipe", "pipe"],
