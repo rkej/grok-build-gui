@@ -1253,15 +1253,168 @@ export class AppStore extends EventEmitter {
   }
 
   async login(): Promise<void> {
-    await execFileAsync(this.client.grokBin, ["login"]);
+    if (this.loginPromise) return this.loginPromise;
+    this.loginPromise = this.runLogin().finally(() => {
+      this.loginPromise = null;
+    });
+    return this.loginPromise;
+  }
+
+  cancelLogin(): void {
+    if (!this.loginChild) return;
+    this.loginChild.kill();
+    this.loginChild = null;
+  }
+
+  private async runLogin(): Promise<void> {
+    const reauth = this.auth.authenticated;
+    this.auth = {
+      ...this.auth,
+      authenticated: reauth,
+      signingIn: true,
+      error: null,
+    };
+    this.bump();
     try {
-      const auth = unwrap<any>(await this.client.authenticateCached());
-      const m = auth?._meta ?? {};
-      this.auth = { authenticated: true, email: m.email, subscriptionTier: m.subscription_tier };
-    } catch {
-      this.auth = { authenticated: false };
+      await this.spawnGrokLogin();
+      if (!this.client.rpc) {
+        await this.reconnectAgent();
+      }
+      let ok = await this.applyCachedAuth();
+      if (!ok) {
+        await this.reconnectAgent();
+        ok = await this.applyCachedAuth();
+      }
+      if (!ok) {
+        throw new Error("Grok CLI login finished, but the agent could not use the new credentials.");
+      }
+      await this.hydrateAfterAuth();
+      this.auth = { ...this.auth, signingIn: false, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : grokError(err);
+      if (reauth && (await this.applyCachedAuth())) {
+        this.auth = { ...this.auth, signingIn: false, error: message };
+      } else {
+        this.auth = signedOutAuth({
+          error: message,
+          loginUrl: this.auth.loginUrl,
+          deviceCode: this.auth.deviceCode,
+        });
+      }
     }
     this.bump();
+  }
+
+  private spawnGrokLogin(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      delete env.ELECTRON_RUN_AS_NODE;
+      const child = spawn(this.client.grokBin, ["login"], {
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      this.loginChild = child;
+      let output = "";
+      const onData = (buf: Buffer | string) => {
+        output += typeof buf === "string" ? buf : buf.toString("utf8");
+        const parsed = parseGrokLoginOutput(output);
+        let changed = false;
+        if (parsed.url && parsed.url !== this.auth.loginUrl) {
+          this.auth = { ...this.auth, loginUrl: parsed.url };
+          changed = true;
+        }
+        if (parsed.deviceCode && parsed.deviceCode !== this.auth.deviceCode) {
+          this.auth = { ...this.auth, deviceCode: parsed.deviceCode };
+          changed = true;
+        }
+        if (changed) this.bump();
+      };
+      child.stdout?.on("data", onData);
+      child.stderr?.on("data", onData);
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error("Grok CLI login timed out. Try again."));
+      }, LOGIN_TIMEOUT_MS);
+      child.once("error", (err) => {
+        clearTimeout(timer);
+        this.loginChild = null;
+        reject(new Error(grokError(err)));
+      });
+      child.once("exit", (code) => {
+        clearTimeout(timer);
+        this.loginChild = null;
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        const detail = output.trim();
+        reject(new Error(detail || `grok login exited (${code ?? "unknown"})`));
+      });
+    });
+  }
+
+  private applyInitializeResult(init: unknown): void {
+    const meta = (init as { _meta?: Record<string, any> } | null)?._meta ?? {};
+    this.models = parseModels(meta.modelState?.availableModels);
+    this.currentModelId = meta.modelState?.currentModelId ?? this.models[0]?.modelId ?? "";
+    this.effort = this.models.find((m) => m.modelId === this.currentModelId)?.reasoningEffort ?? "high";
+    this.commands = asArray(meta.availableCommands);
+  }
+
+  private async applyCachedAuth(): Promise<boolean> {
+    try {
+      const result = unwrap(await this.client.authenticateCached());
+      this.auth = authFromAuthenticateResult(result, this.client.lastAuthMethodId ?? "cached_token");
+      return true;
+    } catch {
+      if (!this.auth.signingIn) {
+        this.auth = signedOutAuth({
+          loginUrl: this.auth.loginUrl,
+          deviceCode: this.auth.deviceCode,
+        });
+      }
+      return false;
+    }
+  }
+
+  private async reconnectAgent(): Promise<void> {
+    this.reconnecting = true;
+    try {
+      this.client.stop();
+      await this.client.start();
+      this.connected = true;
+      this.applyInitializeResult(this.client.initializeResult);
+    } finally {
+      this.reconnecting = false;
+    }
+  }
+
+  private async hydrateAfterAuth(): Promise<void> {
+    this.accountUsage = loggedWeeklyUsage() ?? this.accountUsage;
+    this.startUsagePolling();
+    await this.refreshSessions();
+    for (const session of this.sessions) {
+      if (session.cwd) this.rememberWorkspace(session.cwd, { front: false });
+    }
+    if (!this.gui.rootCwd && this.cwd) this.gui.rootCwd = this.cwd;
+    saveGuiState(this.gui);
+    await this.refreshGit();
+    await this.refreshCatalogs();
+  }
+
+  private maybeNoteAuthFailure(err: unknown): boolean {
+    if (!isAuthError(err)) return false;
+    if (this.auth.signingIn) return true;
+    const wasAuthenticated = this.auth.authenticated;
+    const message = err instanceof Error ? err.message : String(err);
+    this.auth = signedOutAuth({
+      error: wasAuthenticated ? message : this.auth.error,
+      loginUrl: this.auth.loginUrl,
+      deviceCode: this.auth.deviceCode,
+    });
+    this.bump();
+    return true;
   }
 
   private onServerRequest(msg: JsonRpcMessage): void {

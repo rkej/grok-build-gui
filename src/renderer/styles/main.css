@@ -173,7 +173,8 @@
   margin-bottom: 16px;
 }
 
-.conversation--thread > .error-banner {
+.conversation--thread > .error-banner,
+.conversation-timeline > .error-banner {
   max-width: var(--conversation-measure, 920px);
   margin-inline: auto;
 }

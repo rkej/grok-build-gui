@@ -16,6 +16,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Unsigned local packaging (`npm run package:mac` / `package:linux`)
 - Renderer sandbox, single-instance lock, and http(s)-only window opens
 - PATH defaults so packaged apps still find `~/.grok/bin/grok` and Homebrew
+- Thread chat header (workspace · Local/worktree, title, running/relative time)
+- Empty workspace/session canvases matching pi-gui
+- Live “Working for Xs” label, ⌘/, settings, topbar zoom on double-click
 
 ### Security
 
