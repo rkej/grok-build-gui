@@ -142,6 +142,9 @@ if (!identities.includes("Developer ID Application:")) {
   fail("no Developer ID Application certificate was found in the local Keychain");
 }
 
+execute("npm", ["ci"]);
+execute("npm", ["run", "package:mac:release"]);
+
 const stage = path.resolve("release", `staged-${tag}`);
 const ciDirectory = path.join(stage, "ci");
 const assetsDirectory = path.join(stage, "assets");
@@ -162,9 +165,6 @@ execute("gh", [
   "--dir",
   ciDirectory,
 ]);
-
-execute("npm", ["ci"]);
-execute("npm", ["run", "package:mac:release"]);
 
 const macPrefix = `Grok Build-${pkg.version}-mac-`;
 const macAssets = readdirSync("release")
