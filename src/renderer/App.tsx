@@ -773,7 +773,7 @@ export default function App() {
   const threadSearch = useThreadSearch(paneRef);
   const timelineScroll = useTimelineScroll({
     sessionKey: state?.activeSessionId ?? "",
-    itemCount: activeTranscript.length,
+    items: activeTranscript,
     running: Boolean(state?.running),
     enabled: view === "threads",
     paneRef,

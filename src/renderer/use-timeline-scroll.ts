@@ -1,31 +1,50 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import type { TranscriptItem } from "../shared/protocol";
+import { hasUnseenTimelineActivity, transcriptActivityKey } from "./timeline-activity";
 
 const NEAR_BOTTOM_PX = 32;
 const SCROLL_INTENT_MS = 750;
 
 type TimelineScrollOptions = {
   readonly sessionKey: string;
-  readonly itemCount: number;
+  readonly items: readonly TranscriptItem[];
   readonly running: boolean;
   readonly enabled: boolean;
   readonly paneRef: RefObject<HTMLDivElement | null>;
 };
 
+function followMarker(itemCount: number, running: boolean): string {
+  return `${itemCount}:${running ? "1" : "0"}`;
+}
+
 /**
  * Keeps the transcript pinned during streaming without fighting deliberate user
- * scrolling. This is intentionally state-light: the virtualized list owns row
- * measurement, while this hook owns only the scroll contract.
+ * scrolling. Jump-to-latest is reserved for activity that arrived after the
+ * user left the live tail — not for "there are already messages below."
  */
-export function useTimelineScroll({ sessionKey, itemCount, running, enabled, paneRef }: TimelineScrollOptions) {
+export function useTimelineScroll({ sessionKey, items, running, enabled, paneRef }: TimelineScrollOptions) {
   const pinnedRef = useRef(true);
   const intentUntilRef = useRef(0);
   const lastSessionRef = useRef<string | null>(null);
-  const markerRef = useRef("");
+  const followMarkerRef = useRef("");
+  const activityKey = transcriptActivityKey(items, running);
+  const activityKeyRef = useRef(activityKey);
+  const seenKeyRef = useRef(activityKey);
   const alignFrameRef = useRef<number | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  activityKeyRef.current = activityKey;
 
   const isNearBottom = useCallback((pane: HTMLDivElement) => {
     return pane.scrollHeight - pane.scrollTop - pane.clientHeight <= NEAR_BOTTOM_PX;
+  }, []);
+
+  const syncJumpToLatest = useCallback((pinned: boolean) => {
+    setShowJumpToLatest(hasUnseenTimelineActivity(pinned, activityKeyRef.current, seenKeyRef.current));
+  }, []);
+
+  const markSeen = useCallback(() => {
+    seenKeyRef.current = activityKeyRef.current;
+    setShowJumpToLatest(false);
   }, []);
 
   const alignBottom = useCallback((behavior: ScrollBehavior = "auto") => {
@@ -34,8 +53,8 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
     if (behavior === "smooth") pane.scrollTo({ top: pane.scrollHeight, behavior });
     else pane.scrollTop = pane.scrollHeight;
     pinnedRef.current = true;
-    setShowJumpToLatest(false);
-  }, [paneRef, sessionKey]);
+    markSeen();
+  }, [markSeen, paneRef, sessionKey]);
 
   const handleTimelineScrollIntent = useCallback(() => {
     intentUntilRef.current = performance.now() + SCROLL_INTENT_MS;
@@ -55,20 +74,18 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
     }
 
     pinnedRef.current = pinned;
-    setShowJumpToLatest(!pinned);
-  }, [alignBottom, enabled, isNearBottom, paneRef, sessionKey]);
+    if (pinned) markSeen();
+    else syncJumpToLatest(false);
+  }, [alignBottom, enabled, isNearBottom, markSeen, paneRef, sessionKey, syncJumpToLatest]);
 
   const handleContentHeightChange = useCallback(() => {
     if (!enabled) return;
-    if (pinnedRef.current) {
-      if (alignFrameRef.current != null) cancelAnimationFrame(alignFrameRef.current);
-      alignFrameRef.current = requestAnimationFrame(() => {
-        alignFrameRef.current = null;
-        if (pinnedRef.current) alignBottom();
-      });
-    } else {
-      setShowJumpToLatest(true);
-    }
+    if (!pinnedRef.current) return;
+    if (alignFrameRef.current != null) cancelAnimationFrame(alignFrameRef.current);
+    alignFrameRef.current = requestAnimationFrame(() => {
+      alignFrameRef.current = null;
+      if (pinnedRef.current) alignBottom();
+    });
   }, [alignBottom, enabled]);
 
   const jumpToLatest = useCallback(() => {
@@ -82,21 +99,29 @@ export function useTimelineScroll({ sessionKey, itemCount, running, enabled, pan
     const pane = paneRef.current;
     if (!pane) return;
 
+    const nextFollow = followMarker(items.length, running);
     const sessionChanged = lastSessionRef.current !== sessionKey;
     if (sessionChanged) {
       lastSessionRef.current = sessionKey;
+      followMarkerRef.current = nextFollow;
       pinnedRef.current = true;
       alignBottom();
-      markerRef.current = "";
       return;
     }
 
-    const marker = `${itemCount}:${running ? "running" : "idle"}`;
-    if (marker === markerRef.current) return;
-    markerRef.current = marker;
-    if (pinnedRef.current) alignBottom();
-    else setShowJumpToLatest(true);
-  }, [alignBottom, enabled, isNearBottom, itemCount, paneRef, running, sessionKey]);
+    if (pinnedRef.current) {
+      if (nextFollow !== followMarkerRef.current) {
+        followMarkerRef.current = nextFollow;
+        alignBottom();
+      } else {
+        seenKeyRef.current = activityKey;
+      }
+      return;
+    }
+
+    followMarkerRef.current = nextFollow;
+    syncJumpToLatest(false);
+  }, [alignBottom, enabled, activityKey, items.length, paneRef, running, sessionKey, syncJumpToLatest]);
 
   useEffect(() => () => {
     if (alignFrameRef.current != null) cancelAnimationFrame(alignFrameRef.current);
