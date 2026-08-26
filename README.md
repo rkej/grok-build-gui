@@ -78,6 +78,10 @@ npm run package:linux  # AppImage
 Gatekeeper will warn on unsigned macOS builds. That’s expected until a signing
 identity is configured.
 
+Maintainers: the signed public-release workflow and checklist are documented in
+[docs/releasing.md](docs/releasing.md). Pushing a matching version tag builds a
+draft release; it never publishes a release automatically.
+
 ## Architecture
 
 ```

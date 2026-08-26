@@ -6,6 +6,7 @@ import { DiffPanel } from "./diff-panel";
 import { ExtensionsView, type ExtensionsSection } from "./extensions-view";
 import { ForkModal, type ForkEnvironment } from "./fork-modal";
 import { NewThreadView } from "./new-thread-view";
+import { SignInView } from "./sign-in-view";
 import { SecondarySurface } from "./secondary-surface";
 import { SETTINGS_NAV, SettingsView, type SettingsSection } from "./settings-view";
 import { cwdName, Sidebar } from "./sidebar";
@@ -594,6 +595,20 @@ export default function App() {
           <p>Starting grok agent stdio over ACP…</p>
         </div>
       </div>
+    );
+  }
+
+  if (!state.auth.authenticated) {
+    return (
+      <SignInView
+        auth={state.auth}
+        connected={state.connected}
+        grokBin={state.grokBin}
+        grokVersion={state.grokVersion}
+        bootError={state.error}
+        onSignIn={() => void api.login()}
+        onOpenUrl={(url) => void api.openExternal(url)}
+      />
     );
   }
 

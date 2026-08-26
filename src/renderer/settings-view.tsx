@@ -267,14 +267,26 @@ function ProvidersSection({ state }: { readonly state: AppSnapshot }) {
           <div className="settings-row__label">
             <div className="settings-row__title">Grok</div>
             <div className="settings-row__description">
-              {state.auth.authenticated
-                ? state.auth.email ?? "Signed in"
-                : "Sign in with the Grok CLI so this shell can run sessions."}
+              {state.auth.signingIn
+                ? "Waiting for Grok CLI login to finish in your browser."
+                : state.auth.authenticated
+                  ? state.auth.email ?? "Signed in"
+                  : "Sign in with the Grok CLI so this shell can run sessions."}
+              {state.auth.error ? ` ${state.auth.error}` : ""}
             </div>
           </div>
           <div className="settings-row__actions">
-            <button className="button button--primary" type="button" onClick={() => void window.grokApp.login()}>
-              {state.auth.authenticated ? "Re-authenticate" : "Login"}
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={Boolean(state.auth.signingIn)}
+              onClick={() => void window.grokApp.login()}
+            >
+              {state.auth.signingIn
+                ? "Signing in…"
+                : state.auth.authenticated
+                  ? "Re-authenticate"
+                  : "Sign in"}
             </button>
           </div>
         </div>
