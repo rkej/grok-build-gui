@@ -12,3 +12,18 @@ export function mentionCandidatePath(candidate: unknown): string {
   }
   return String(candidate ?? "");
 }
+
+export function composerEscapeAction({
+  uiOpen,
+  editingQueuedMessage,
+  running,
+}: {
+  uiOpen: boolean;
+  editingQueuedMessage: boolean;
+  running: boolean;
+}): "dismiss-ui" | "cancel-edit" | "cancel-run" | "none" {
+  if (uiOpen) return "dismiss-ui";
+  if (editingQueuedMessage) return "cancel-edit";
+  if (running) return "cancel-run";
+  return "none";
+}

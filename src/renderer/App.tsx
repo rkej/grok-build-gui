@@ -25,7 +25,7 @@ import { useRunningLabel } from "./use-running-label";
 import { useThreadSearch } from "./use-thread-search";
 import { useTimelineScroll } from "./use-timeline-scroll";
 import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
-import { moveSelectionIndex, mentionCandidatePath } from "./composer-navigation";
+import { composerEscapeAction, moveSelectionIndex, mentionCandidatePath } from "./composer-navigation";
 import { moveSlashSelection, slashCommandKey, slashMenuItems, slashTabCompletion } from "./slash-completion";
 
 const EMPTY_TRANSCRIPT: readonly TranscriptItem[] = [];
@@ -435,19 +435,23 @@ export default function App() {
       void submit(e.metaKey || e.ctrlKey ? "steer" : "followUp");
     }
     if (e.key === "Escape") {
-      const dismissingComposerUi = slashOpen || slashOptions.length > 0 || mentionOpen || openMenu !== "none";
+      const action = composerEscapeAction({
+        uiOpen: slashOpen || slashOptions.length > 0 || mentionOpen || openMenu !== "none",
+        editingQueuedMessage: Boolean(editingQueuedMessageId),
+        running: Boolean(state?.running),
+      });
       closeSlashMenus();
       setMentionOpen(false);
       setOpenMenu("none");
-      if (dismissingComposerUi) {
+      if (action === "dismiss-ui") {
         e.preventDefault();
         return;
       }
-      if (editingQueuedMessageId) {
+      if (action === "cancel-edit") {
         onCancelQueuedEdit();
         return;
       }
-      if (state?.running) onCancel();
+      if (action === "cancel-run") onCancel();
     }
   };
 
