@@ -62,7 +62,7 @@ export class TerminalHost {
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
-    };
+    } as Record<string, string>;
 
     if (ptySpawn) {
       try {
