@@ -26,7 +26,7 @@ function sendTranscript(snapshot: ReturnType<AppStore["transcriptSnapshot"]>): v
 
 function resolvePreload(): string {
   const dir = path.join(__dirname, "../preload");
-  for (const name of ["index.mjs", "index.js", "index.cjs"]) {
+  for (const name of ["index.cjs", "index.js", "index.mjs"]) {
     const candidate = path.join(dir, name);
     if (existsSync(candidate)) return candidate;
   }

@@ -1,8 +1,6 @@
 appId: app.grok-build-gui.desktop
 productName: Grok Build
 copyright: Copyright 2026 Grok Build GUI contributors
-electronVersion: 37.10.3
-
 directories:
   output: release
   buildResources: resources
