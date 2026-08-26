@@ -105,7 +105,7 @@ export class TerminalHost {
     this.cwd = cwd || homedir();
     this.cols = Math.max(2, Math.floor(size?.cols ?? this.cols));
     this.rows = Math.max(1, Math.floor(size?.rows ?? this.rows));
-    const shell = this.options.shell ?? this.options.env?.SHELL ?? process.env.SHELL ?? "/bin/zsh";
+    const shell = this.options.shell ?? this.options.env?.SHELL ?? (process.env.SHELL || "/bin/zsh");
     const env = terminalChildEnv(this.options.env ?? process.env);
     const ptySpawn = this.resolvePtySpawn();
 
