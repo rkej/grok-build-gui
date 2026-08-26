@@ -52,7 +52,9 @@ npm install
 npm run dev
 ```
 
-Open a folder with **File → Open Folder** (⌘O), then **New thread**.
+If you are not already signed in, the app opens a Grok CLI sign-in flow
+(`grok login`) before the thread UI. After that, open a folder with
+**File → Open Folder** (⌘O), then **New thread**.
 
 | Shortcut | Action |
 | --- | --- |
