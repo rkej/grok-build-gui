@@ -1,3 +1,7 @@
+import type { FontScale, MonoFontId, UiFontId } from "./fonts";
+
+export type { FontScale, MonoFontId, UiFontId };
+
 export type PermissionMode = "ask" | "auto" | "always-approve" | "plan";
 export type Effort = "low" | "medium" | "high" | "xhigh";
 export type AppView = "threads" | "new-thread" | "skills" | "mcp" | "settings";
@@ -335,6 +339,9 @@ export type GuiState = {
   themeMode: ThemeMode;
   themePresetId: ThemePresetId;
   enableTransparency: boolean;
+  uiFontId: UiFontId;
+  monoFontId: MonoFontId;
+  fontScale: FontScale;
   workspaceNames: Record<string, string>;
   lastSeen: Record<string, string>;
   composerDrafts: Record<string, string>;
@@ -364,6 +371,9 @@ export const DEFAULT_GUI_STATE: GuiState = {
   themeMode: "system",
   themePresetId: "default",
   enableTransparency: false,
+  uiFontId: "system",
+  monoFontId: "system",
+  fontScale: 100,
   workspaceNames: {},
   lastSeen: {},
   composerDrafts: {},

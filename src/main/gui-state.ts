@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { parseFontScale, parseMonoFontId, parseUiFontId } from "../shared/fonts.js";
 import { clampSidebarWidth } from "../shared/layout.js";
 import { DEFAULT_GUI_STATE, type GuiState } from "../shared/protocol.js";
 import { grokHome, guiStatePath } from "./paths.js";
@@ -22,6 +23,9 @@ export function loadGuiState(): GuiState {
       lastSeen: record(raw.lastSeen),
       composerDrafts: record(raw.composerDrafts),
       permanentWorktrees: record(raw.permanentWorktrees),
+      uiFontId: parseUiFontId(raw.uiFontId),
+      monoFontId: parseMonoFontId(raw.monoFontId),
+      fontScale: parseFontScale(raw.fontScale),
       sidebarWidth: clampSidebarWidth(
         typeof raw.sidebarWidth === "number" ? raw.sidebarWidth : DEFAULT_GUI_STATE.sidebarWidth,
       ),
