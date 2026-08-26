@@ -12,6 +12,7 @@ const VIRTUALIZATION_THRESHOLD = 80;
 export const ConversationTimeline = memo(function ConversationTimeline({
   items,
   running,
+  runningLabel,
   error,
   paneRef,
   expandedTools,
@@ -32,6 +33,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
 }: {
   readonly items: readonly TranscriptItem[];
   readonly running: boolean;
+  readonly runningLabel?: string;
   readonly error: string | null;
   readonly paneRef: RefObject<HTMLDivElement | null>;
   readonly expandedTools: Record<string, boolean>;
