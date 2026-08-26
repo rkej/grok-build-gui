@@ -413,7 +413,8 @@ export default function App() {
       const completion = slashTabCompletion(draft, slashOpen, slashItems, selectedSlashCommand);
       if (completion) {
         e.preventDefault();
-        completeSlashCommand(completion.name);
+        if (e.key === "Tab") completeSlashCommand(completion.name);
+        else onPickSlash(completion.name);
         return;
       }
       if (mentionOpen && mentionHits.length > 0) {
