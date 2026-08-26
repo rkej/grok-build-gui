@@ -20,6 +20,18 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Thread chat header (workspace · Local/worktree, title, running/relative time)
 - Empty workspace/session canvases matching pi-gui
 - Live “Working for Xs” label, ⌘/, settings, topbar zoom on double-click
+- Thought blocks render their text; thread composer is one line until it grows
+- File → New Thread opens the new-thread surface instead of creating a session
+- Folder rows: chevron collapses, name focuses the workspace
+- Settings: show-thoughts toggle and thinking-level pills
+
+### Fixed
+
+- Attachment-only sends on an existing thread were dropped
+- Compact did not reload the on-disk transcript
+- Deleting a session left it in pin/archive lists
+- Native window theme ignored Appearance settings
+- Integrated terminal accepted any cwd from the renderer
 
 ### Security
 
