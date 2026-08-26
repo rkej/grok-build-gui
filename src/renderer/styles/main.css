@@ -69,6 +69,7 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  padding-inline: 0;
   overflow: hidden;
 }
 
@@ -84,7 +85,7 @@
   min-width: 0;
   overflow: hidden;
   flex-direction: column;
-  width: min(927px, 100%);
+  width: 100%;
 }
 
 .conversation-timeline {
@@ -115,7 +116,8 @@
 .chat-header {
   display: grid;
   gap: 4px;
-  margin-bottom: 18px;
+  width: min(var(--conversation-measure, 920px), calc(100% - 56px));
+  margin: 0 auto 18px;
 }
 
 .chat-header__eyebrow {

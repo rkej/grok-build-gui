@@ -61,7 +61,8 @@
   gap: 12px;
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   container-type: inline-size;
   container-name: timeline-surface;
 }
@@ -71,6 +72,12 @@
   min-height: 0;
   min-width: 0;
   max-height: none;
+}
+
+.timeline-pane__content {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .timeline-context-rail {

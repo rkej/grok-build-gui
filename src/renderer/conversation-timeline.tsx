@@ -148,14 +148,14 @@ export const ConversationTimeline = memo(function ConversationTimeline({
   return (
     <div className="conversation-timeline">
       {error ? <div className="error-banner">{error}</div> : null}
-      <div className="timeline-surface">
-        <div
-          className="timeline-pane timeline-pane--thread"
-          ref={paneRef}
-          data-testid="timeline-pane"
-          onPointerDown={onTimelineScrollIntent}
-          onWheel={onTimelineScrollIntent}
-        >
+      <div
+        className="timeline-surface timeline-pane timeline-pane--thread"
+        ref={paneRef}
+        data-testid="timeline-pane"
+        onPointerDown={onTimelineScrollIntent}
+        onWheel={onTimelineScrollIntent}
+      >
+        <div className="timeline-pane__content">
           {threadSearch?.isOpen ? (
             <ThreadSearchBar
               query={threadSearch.query}
