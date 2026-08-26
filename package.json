@@ -5,14 +5,6 @@
   "license": "MIT",
   "description": "Codex-style desktop client for the Grok Build harness.",
   "author": "Grok Build GUI contributors",
-  "homepage": "https://github.com/rkej/grok-build-gui",
-  "bugs": {
-    "url": "https://github.com/rkej/grok-build-gui/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/rkej/grok-build-gui.git"
-  },
   "engines": {
     "node": ">=22"
   },
@@ -27,10 +19,10 @@
     "ci": "npm run typecheck && npm test && npm run build",
     "start": "electron-vite preview",
     "icon": "node scripts/write-icon.mjs",
-    "package": "npm run build && npm run icon && electron-builder --publish never",
-    "package:dir": "npm run build && npm run icon && electron-builder --dir --publish never",
-    "package:mac": "npm run build && npm run icon && electron-builder --mac --publish never",
-    "package:linux": "npm run build && npm run icon && electron-builder --linux --publish never"
+    "package": "npm run build && npm run icon && npx --yes electron-builder@26.8.1 --publish never",
+    "package:dir": "npm run build && npm run icon && npx --yes electron-builder@26.8.1 --dir --publish never",
+    "package:mac": "npm run build && npm run icon && npx --yes electron-builder@26.8.1 --mac --publish never",
+    "package:linux": "npm run build && npm run icon && npx --yes electron-builder@26.8.1 --linux --publish never"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -47,7 +39,6 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^37.10.3",
-    "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3",
