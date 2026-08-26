@@ -176,6 +176,43 @@ export default function App() {
   }, [draft, view]);
 
   useEffect(() => {
+    draftValueRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    if (!state || draftsSeeded.current) return;
+    draftsRef.current = { ...(state.gui.composerDrafts ?? {}) };
+    draftsSeeded.current = true;
+  }, [state]);
+
+  useEffect(() => {
+    if (!state) return;
+    const key = composerDraftKey(state.activeSessionId, state.cwd, view === "new-thread");
+    if (draftKeyRef.current === key) return;
+    if (draftKeyRef.current) persistDraft(draftKeyRef.current, draftValueRef.current);
+    draftKeyRef.current = key;
+    const next = draftsRef.current[key] ?? state.gui.composerDrafts?.[key] ?? "";
+    setDraft(next);
+    draftValueRef.current = next;
+  }, [persistDraft, state, view]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (draftKeyRef.current) persistDraft(draftKeyRef.current, draftValueRef.current);
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onHide);
+      if (draftTimer.current != null) window.clearTimeout(draftTimer.current);
+    };
+  }, [persistDraft]);
+
+  useEffect(() => {
     if (openMenu === "none" && !environmentMenuOpen && !workspaceMenu && !threadMenu) return;
     const onDown = (event: Event) => {
       const target = event.target as Node;
@@ -773,7 +810,7 @@ export default function App() {
       unsubNewThread();
       unsubRename();
     };
-  }, [api, state?.activeSessionId, threadSearch, view]);
+  }, [api, state?.activeSessionId, state?.gui.workspaces, threadSearch, view]);
 
   useEffect(() => {
     if (threadSearch.isOpen) threadSearch.close();
@@ -937,10 +974,13 @@ export default function App() {
   }
 
   const shellClass = ["shell", collapsed ? "shell--sidebar-collapsed" : ""].join(" ");
+  const terminalHeight = liveTerminalHeight ?? state.gui.terminalHeight ?? 340;
+  const terminalTakeover = Boolean(state.gui.terminalTakeover);
   const mainClass = [
     "main",
     sidePanelMode && view === "threads" ? "main--with-side-panel" : "",
     showTerminal && view === "threads" ? "main--with-terminal" : "",
+    showTerminal && view === "threads" && terminalTakeover ? "main--terminal-takeover" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -1146,7 +1186,41 @@ export default function App() {
 
         {sidePanelMode && view === "threads" ? <DiffPanel state={state} mode={sidePanelMode} focusPath={diffFocusPath} /> : null}
         {showTerminal && view === "threads" ? (
-          <TerminalPanel cwd={state.cwd} onClose={() => persistGui({ showTerminal: false })} />
+          <TerminalPanel
+            cwd={state.cwd}
+            height={terminalHeight}
+            isTakeover={terminalTakeover}
+            onHeightChange={(height) => {
+              setLiveTerminalHeight(height);
+              if (heightTimer.current != null) window.clearTimeout(heightTimer.current);
+              heightTimer.current = window.setTimeout(() => {
+                heightTimer.current = null;
+                persistGui({ terminalHeight: height });
+              }, 150);
+            }}
+            onToggleTakeover={() => persistGui({ terminalTakeover: !terminalTakeover })}
+            onClose={() => persistGui({ showTerminal: false, terminalTakeover: false })}
+          />
+        ) : null}
+        {treeOpen ? (
+          <TreeModal
+            points={treePoints}
+            loading={treeLoading}
+            submitting={treeSubmitting}
+            error={treeError}
+            onClose={() => {
+              if (treeSubmitting) return;
+              setTreeOpen(false);
+            }}
+            onRewind={(index) => {
+              setTreeSubmitting(true);
+              setTreeError(undefined);
+              void api.rewind(index).then(
+                () => setTreeOpen(false),
+                (error) => setTreeError(error instanceof Error ? error.message : String(error)),
+              ).finally(() => setTreeSubmitting(false));
+            }}
+          />
         ) : null}
         {forkRequest ? (
           <ForkModal
