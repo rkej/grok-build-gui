@@ -41,8 +41,10 @@ import type {
   TranscriptItem,
   TranscriptSnapshot,
 } from "../shared/protocol.js";
+import { putComposerDraft } from "../shared/composer-drafts.js";
 import { mergePlanEntries, parsePlanEntries } from "../shared/plan.js";
-import { discardFile, diffFile, inspectGit, stageFile, unstageFile } from "./git.js";
+import { sessionHasUnseenUpdate } from "../shared/session-unseen.js";
+import { addPermanentWorktree, discardFile, diffFile, inspectGit, removePermanentWorktree, stageFile, unstageFile } from "./git.js";
 import { listTree, readWorkspaceFile } from "./files.js";
 import { fetchWeeklyUsage, loggedWeeklyUsage, parseWeeklyUsage } from "./billing.js";
 import { tryHandleFsRequest } from "./fs-bridge.js";
@@ -166,6 +168,13 @@ export class AppStore extends EventEmitter {
         ...s,
         pinned: this.gui.pinned.includes(s.sessionId),
         archived: this.gui.archived.includes(s.sessionId) || Boolean(s.archived),
+        unseen: sessionHasUnseenUpdate({
+          sessionId: s.sessionId,
+          activeSessionId: this.activeSessionId,
+          activity: s.activity,
+          updatedAt: s.updatedAt,
+          lastSeen: this.gui.lastSeen?.[s.sessionId],
+        }),
       })),
       activeSessionId: this.activeSessionId,
       // The transcript travels over its own IPC channel. Keeping it out of the
@@ -178,7 +187,7 @@ export class AppStore extends EventEmitter {
       queue: this.queue,
       running: Boolean(this.activeSessionId && (this.running || this.isSessionWorking(this.activeSessionId))),
       git: this.git,
-      worktrees: this.worktrees,
+      worktrees: this.mergedWorktrees(),
       mcp: this.mcp,
       plugins: this.plugins,
       skills: this.skills,
@@ -257,7 +266,29 @@ export class AppStore extends EventEmitter {
     return isForActiveSession(params, this.activeSessionId, this.inFlightPrompts);
   }
 
+  private mergedWorktrees(): AppSnapshot["worktrees"] {
+    const listed = this.worktrees.filter((tree) => tree.path);
+    const seen = new Set(listed.map((tree) => tree.path));
+    const extra = Object.entries(this.gui.permanentWorktrees ?? {})
+      .filter(([, worktreePath]) => worktreePath && !seen.has(worktreePath))
+      .map(([cwd, worktreePath]) => ({
+        path: worktreePath,
+        label: this.gui.workspaceNames?.[cwd] || path.basename(worktreePath),
+      }));
+    return extra.length ? [...listed, ...extra] : listed;
+  }
+
+  private markSessionSeen(sessionId: string | null): void {
+    const lastSeen = { ...(this.gui.lastSeen ?? {}) };
+    const now = new Date().toISOString();
+    if (this.activeSessionId && this.activeSessionId !== sessionId) lastSeen[this.activeSessionId] = now;
+    if (sessionId) lastSeen[sessionId] = now;
+    this.gui.lastSeen = lastSeen;
+    saveGuiState(this.gui);
+  }
+
   private adoptSession(sessionId: string, initialItems: TranscriptItem[] = []): number {
+    this.markSessionSeen(sessionId);
     const epoch = ++this.sessionEpoch;
     this.loadingSession = null;
     this.activeSessionId = sessionId;
@@ -447,8 +478,52 @@ export class AppStore extends EventEmitter {
     this.gui.workspaces = (this.gui.workspaces ?? []).filter((item) => item !== dir);
     if (this.gui.rootCwd === dir) this.gui.rootCwd = this.gui.workspaces[0] ?? "";
     if (this.cwd === dir) this.cwd = this.gui.rootCwd || this.cwd;
+    const names = { ...(this.gui.workspaceNames ?? {}) };
+    delete names[dir];
+    this.gui.workspaceNames = names;
+    const trees = { ...(this.gui.permanentWorktrees ?? {}) };
+    delete trees[dir];
+    this.gui.permanentWorktrees = trees;
     saveGuiState(this.gui);
     this.bump();
+  }
+
+  renameWorkspace(dir: string, name: string): void {
+    const names = { ...(this.gui.workspaceNames ?? {}) };
+    const trimmed = name.trim();
+    if (trimmed) names[dir] = trimmed;
+    else delete names[dir];
+    this.gui.workspaceNames = names;
+    saveGuiState(this.gui);
+    this.bump();
+  }
+
+  async createPermanentWorktree(dir: string): Promise<string> {
+    const dest = await addPermanentWorktree(dir);
+    this.gui.permanentWorktrees = { ...(this.gui.permanentWorktrees ?? {}), [dir]: dest };
+    saveGuiState(this.gui);
+    if (!this.worktrees.some((tree) => tree.path === dest)) {
+      this.worktrees = [...this.worktrees, { path: dest, label: path.basename(dest) }];
+    }
+    await this.setCwd(dest);
+    return dest;
+  }
+
+  async removeLinkedWorktree(dir: string): Promise<void> {
+    const dest = this.gui.permanentWorktrees?.[dir];
+    if (!dest) return;
+    try {
+      await removePermanentWorktree(dir, dest);
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+    }
+    const trees = { ...(this.gui.permanentWorktrees ?? {}) };
+    delete trees[dir];
+    this.gui.permanentWorktrees = trees;
+    this.worktrees = this.worktrees.filter((tree) => tree.path !== dest);
+    saveGuiState(this.gui);
+    if (this.cwd === dest) await this.setCwd(dir, { asRoot: true });
+    else this.bump();
   }
 
   private seedWorkspaces(): void {
@@ -858,6 +933,12 @@ export class AppStore extends EventEmitter {
     }
     this.gui.pinned = this.gui.pinned.filter((id) => id !== sessionId);
     this.gui.archived = this.gui.archived.filter((id) => id !== sessionId);
+    const lastSeen = { ...(this.gui.lastSeen ?? {}) };
+    delete lastSeen[sessionId];
+    this.gui.lastSeen = lastSeen;
+    const drafts = { ...(this.gui.composerDrafts ?? {}) };
+    delete drafts[sessionId];
+    this.gui.composerDrafts = drafts;
     saveGuiState(this.gui);
     await this.refreshSessions();
     this.bump();
@@ -1212,6 +1293,18 @@ export class AppStore extends EventEmitter {
     this.gui.pinned = pinned ? [...current, sessionId] : current;
     saveGuiState(this.gui);
     this.bump();
+  }
+
+  markRead(sessionId: string): void {
+    this.gui.lastSeen = { ...(this.gui.lastSeen ?? {}), [sessionId]: new Date().toISOString() };
+    saveGuiState(this.gui);
+    this.bump();
+  }
+
+  setComposerDraft(key: string, text: string): void {
+    if (!key) return;
+    this.gui.composerDrafts = putComposerDraft(this.gui.composerDrafts, key, text);
+    saveGuiState(this.gui);
   }
 
   archive(sessionId: string, archived: boolean): void {

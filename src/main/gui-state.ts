@@ -2,10 +2,28 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { DEFAULT_GUI_STATE, type GuiState } from "../shared/protocol.js";
 import { grokHome, guiStatePath } from "./paths.js";
 
+function record(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const next: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "string") next[key] = entry;
+  }
+  return next;
+}
+
 export function loadGuiState(): GuiState {
   try {
     const raw = JSON.parse(readFileSync(guiStatePath(), "utf8")) as Partial<GuiState>;
-    return { ...DEFAULT_GUI_STATE, ...raw };
+    return {
+      ...DEFAULT_GUI_STATE,
+      ...raw,
+      workspaceNames: record(raw.workspaceNames),
+      lastSeen: record(raw.lastSeen),
+      composerDrafts: record(raw.composerDrafts),
+      permanentWorktrees: record(raw.permanentWorktrees),
+      terminalHeight: typeof raw.terminalHeight === "number" ? raw.terminalHeight : DEFAULT_GUI_STATE.terminalHeight,
+      terminalTakeover: Boolean(raw.terminalTakeover),
+    };
   } catch {
     return { ...DEFAULT_GUI_STATE };
   }
