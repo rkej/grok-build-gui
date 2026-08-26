@@ -7,7 +7,6 @@ import {
   ModelIcon,
   PlusIcon,
   ReasoningIcon,
-  SettingsIcon,
   SkillIcon,
   SparkIcon,
   StatusIcon,

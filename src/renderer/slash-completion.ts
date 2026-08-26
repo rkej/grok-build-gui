@@ -53,7 +53,9 @@ export function grokSlashItems(state: {
 }
 
 export function slashMenuItems<T extends SlashCompletionCandidate>(items: readonly T[]): T[] {
-  return [...items];
+  const runtime = items.filter((item) => item.section === "runtime").slice(0, 8);
+  const host = items.filter((item) => item.section === "host");
+  return [...runtime, ...host];
 }
 
 export function moveSlashSelection<T extends SlashCompletionCandidate>(

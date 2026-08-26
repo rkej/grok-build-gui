@@ -747,7 +747,7 @@ export default function App() {
       composerRef={composerRef}
       selectorRef={selectorRef}
       slashOpen={slashOpen}
-      slashItems={slashItems}
+      slashItems={visibleSlashItems}
       slashOptions={slashOptions}
       slashOptionTitle={slashOptionTitle}
       selectedSlashOption={selectedSlashOption}
@@ -922,7 +922,7 @@ export default function App() {
             composerRef={composerRef}
             selectorRef={selectorRef}
             slashOpen={slashOpen}
-            slashItems={slashItems}
+            slashItems={visibleSlashItems}
             slashOptions={slashOptions}
             slashOptionTitle={slashOptionTitle}
             selectedSlashOption={selectedSlashOption}
