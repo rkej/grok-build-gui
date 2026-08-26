@@ -55,6 +55,7 @@ import { sessionDir } from "./paths.js";
 import { parseModels, parseSlashCommands, resolveSessionActivity, sessionTitle } from "./session-meta.js";
 import { childSessionStub, listSubagentChildren, parentIdFromDisk, parentIdFromSessionRow } from "./session-parent.js";
 import { canSettleSessionFromNotification, isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
+import { sessionUpdateFileAppearsWorking } from "./session-running.js";
 import { MAX_LOADED_TOOL_PAYLOADS } from "../shared/loaded-tool-cache.js";
 import { applySessionUpdate, compactToolForTransport, createFold, isTerminalToolStatus, normalizeTool, replayJsonl, type TranscriptFold } from "./transcript.js";
 import { parseContextUsage } from "./usage.js";
@@ -168,7 +169,7 @@ export class AppStore extends EventEmitter {
         const activity = resolveSessionActivity(
           s,
           this.liveById.get(s.sessionId),
-          this.inFlightPrompts.has(s.sessionId),
+          this.inFlightPrompts.has(s.sessionId) || s.activity === "working",
         );
         return {
           ...s,
@@ -318,7 +319,10 @@ export class AppStore extends EventEmitter {
   private isSessionWorking(sessionId: string): boolean {
     const listed = this.sessions.find((session) => session.sessionId === sessionId);
     const live = this.liveById.get(sessionId);
-    return resolveSessionActivity(listed, live, this.inFlightPrompts.has(sessionId)) === "working";
+    const persisted = listed
+      ? sessionUpdateFileAppearsWorking(path.join(sessionDir(sessionId, listed.cwd), "updates.jsonl"))
+      : false;
+    return resolveSessionActivity(listed, live, this.inFlightPrompts.has(sessionId) || persisted) === "working";
   }
 
   private markSessionActivity(sessionId: string, activity: SessionSummary["activity"]): void {
@@ -419,6 +423,8 @@ export class AppStore extends EventEmitter {
           this.childParents.get(id) ??
           parentIdFromDisk(id, cwd);
         if (parentSessionId) this.childParents.set(id, parentSessionId);
+        const appearsWorking = this.inFlightPrompts.has(id)
+          || sessionUpdateFileAppearsWorking(path.join(sessionDir(id, cwd), "updates.jsonl"));
         return {
           sessionId: id,
           cwd,
@@ -429,7 +435,7 @@ export class AppStore extends EventEmitter {
           updatedAt: s.updatedAt ?? s.lastActiveAt ?? "",
           lastActiveAt: s.lastActiveAt,
           numMessages: s.numMessages ?? 0,
-          activity: resolveSessionActivity(s, l, this.inFlightPrompts.has(id)),
+          activity: resolveSessionActivity(s, l, appearsWorking),
           yolo: l?.yolo,
           reasoningEffort: l?.reasoningEffort ?? s.reasoningEffort,
           isWorktree: l?.isWorktree ?? false,
@@ -458,7 +464,8 @@ export class AppStore extends EventEmitter {
         activity: resolveSessionActivity(
           session,
           this.liveById.get(session.sessionId),
-          this.inFlightPrompts.has(session.sessionId),
+          this.inFlightPrompts.has(session.sessionId)
+            || sessionUpdateFileAppearsWorking(path.join(sessionDir(session.sessionId, session.cwd), "updates.jsonl")),
         ),
       }));
     } catch (err) {
