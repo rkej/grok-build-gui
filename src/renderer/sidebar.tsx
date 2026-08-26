@@ -26,6 +26,11 @@ export function cwdName(cwd: string): string {
   return parts[parts.length - 1] ?? cwd;
 }
 
+export function workspaceDisplayName(cwd: string, names?: Record<string, string>): string {
+  const custom = names?.[cwd]?.trim();
+  return custom || cwdName(cwd);
+}
+
 export function relTime(iso?: string | null): string {
   if (!iso) return "";
   const t = Date.parse(iso);
@@ -37,12 +42,10 @@ export function relTime(iso?: string | null): string {
   return `${Math.floor(s / 86400)}d`;
 }
 
-function indicator(
-  activity: SessionSummary["activity"],
-): "running" | "failed" | "unseen" | "none" {
-  if (activity === "working") return "running";
-  if (activity === "failed") return "failed";
-  if (activity === "needs-input" || activity === "blocked") return "unseen";
+function indicator(s: SessionSummary): "running" | "failed" | "unseen" | "none" {
+  if (s.activity === "working") return "running";
+  if (s.activity === "failed") return "failed";
+  if (s.unseen || s.activity === "needs-input" || s.activity === "blocked") return "unseen";
   return "none";
 }
 
@@ -59,21 +62,30 @@ export function Sidebar({
   workspaceMenu,
   threadMenu,
   renamingId,
+  renamingWorkspace,
+  workspaceNames,
+  permanentWorktrees,
   onNewThread,
   onSetView,
   onPickFolder,
   onSelectWorkspace,
   onToggleWorkspace,
   onToggleWorkspaceMenu,
-  onUseFolder,
   onOpenFolder,
+  onCreateWorktree,
+  onRemoveWorktree,
   onRemoveWorkspace,
+  onStartWorkspaceRename,
+  onCommitWorkspaceRename,
+  onCancelWorkspaceRename,
   onSelectSession,
   onToggleThreadMenu,
   onToggleArchived,
   onStartRename,
   onCommitRename,
   onCancelRename,
+  onMarkRead,
+  onCopySessionId,
   onReorderWorkspaces,
   onReorderPinned,
 }: {
@@ -89,24 +101,34 @@ export function Sidebar({
   readonly workspaceMenu: string | null;
   readonly threadMenu: string | null;
   readonly renamingId: string | null;
+  readonly renamingWorkspace: string | null;
+  readonly workspaceNames: Record<string, string>;
+  readonly permanentWorktrees: Record<string, string>;
   readonly onNewThread: () => void;
   readonly onSetView: (view: AppView) => void;
   readonly onPickFolder: () => void;
   readonly onSelectWorkspace: (cwd: string) => void;
   readonly onToggleWorkspace: (cwd: string) => void;
   readonly onToggleWorkspaceMenu: (cwd: string) => void;
-  readonly onUseFolder: (cwd: string) => void;
   readonly onOpenFolder: (cwd: string) => void;
+  readonly onCreateWorktree: (cwd: string) => void;
+  readonly onRemoveWorktree: (cwd: string) => void;
   readonly onRemoveWorkspace: (cwd: string) => void;
+  readonly onStartWorkspaceRename: (cwd: string) => void;
+  readonly onCommitWorkspaceRename: (cwd: string, name: string) => void;
+  readonly onCancelWorkspaceRename: () => void;
   readonly onSelectSession: (session: SessionSummary) => void;
   readonly onToggleThreadMenu: (sessionId: string) => void;
   readonly onToggleArchived: (cwd: string) => void;
   readonly onStartRename: (sessionId: string) => void;
   readonly onCommitRename: (sessionId: string, title: string) => void;
   readonly onCancelRename: () => void;
+  readonly onMarkRead: (sessionId: string) => void;
+  readonly onCopySessionId: (sessionId: string) => void;
   readonly onReorderWorkspaces?: (order: string[]) => void;
   readonly onReorderPinned?: (order: string[]) => void;
 }) {
+  const canCreateThread = groups.length > 0;
   const [dragId, setDragId] = useState<string | null>(null);
   const move = (list: string[], from: string, to: string) => {
     const next = list.filter((id) => id !== from);
@@ -118,7 +140,13 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar__top">
-        <button className="sidebar__new" type="button" onClick={onNewThread}>
+        <button
+          className="sidebar__new"
+          type="button"
+          disabled={!canCreateThread}
+          title={canCreateThread ? undefined : "Open a folder first"}
+          onClick={onNewThread}
+        >
           <PlusIcon />
           <span>New thread</span>
         </button>
@@ -166,7 +194,7 @@ export function Sidebar({
           <div className="section__tools">
             <div className="shortcut-tooltip-wrap">
               <button
-                aria-label="Add project folder"
+                aria-label="Open folder"
                 className="icon-button"
                 type="button"
                 onClick={onPickFolder}
@@ -174,7 +202,7 @@ export function Sidebar({
                 <FolderIcon />
               </button>
               <span className="shortcut-tooltip" role="tooltip">
-                <span>Add project</span>
+                <span>Open folder</span>
               </span>
             </div>
           </div>
@@ -238,6 +266,8 @@ export function Sidebar({
                         onCommitRename(s.sessionId, title)
                       }
                       onCancelRename={onCancelRename}
+                      onMarkRead={() => onMarkRead(s.sessionId)}
+                      onCopySessionId={() => onCopySessionId(s.sessionId)}
                     />
                   ))}
                 </div>
@@ -246,11 +276,13 @@ export function Sidebar({
 
             {groups.map((g) => {
               const isCollapsed = Boolean(collapsedWorkspaces[g.cwd]);
+              const linkedWorktree = permanentWorktrees[g.cwd];
+              const displayName = workspaceDisplayName(g.cwd, workspaceNames);
               return (
                 <section className="workspace-group" key={g.cwd}>
                   <div
                     className={`workspace-row ${g.cwd === cwd ? "workspace-row--active" : ""}`}
-                    draggable
+                    draggable={renamingWorkspace !== g.cwd}
                     onDragStart={() => setDragId(`ws:${g.cwd}`)}
                     onDragEnd={() => setDragId(null)}
                     onDragOver={(event) => event.preventDefault()}
@@ -270,7 +302,7 @@ export function Sidebar({
                   >
                     <button
                       aria-expanded={!isCollapsed}
-                      aria-label={isCollapsed ? `Expand ${cwdName(g.cwd)}` : `Collapse ${cwdName(g.cwd)}`}
+                      aria-label={isCollapsed ? `Expand ${displayName}` : `Collapse ${displayName}`}
                       className="workspace-row__collapse"
                       type="button"
                       onClick={() => onToggleWorkspace(g.cwd)}
@@ -293,11 +325,14 @@ export function Sidebar({
                       onClick={() => onSelectWorkspace(g.cwd)}
                     >
                       <span className="workspace-row__name">
-                        {cwdName(g.cwd)}
+                        {displayName}
                       </span>
                     </button>
                     <span className="workspace-row__menu-wrap">
                       <button
+                        aria-label={`Workspace actions for ${displayName}`}
+                        aria-haspopup="menu"
+                        aria-expanded={workspaceMenu === g.cwd}
                         className="icon-button workspace-row__menu-button"
                         type="button"
                         onClick={(e) => {
@@ -308,32 +343,82 @@ export function Sidebar({
                         …
                       </button>
                       {workspaceMenu === g.cwd && (
-                        <div className="workspace-menu">
-                          <button
-                            className="workspace-menu__item"
-                            type="button"
-                            onClick={() => onUseFolder(g.cwd)}
-                          >
-                            Use this folder
-                          </button>
+                        <div className="workspace-menu" role="menu">
                           <button
                             className="workspace-menu__item"
                             type="button"
                             onClick={() => onOpenFolder(g.cwd)}
                           >
-                            Reveal in Finder
+                            Open folder
+                          </button>
+                          {linkedWorktree ? (
+                            <button
+                              className="workspace-menu__item workspace-menu__item--danger"
+                              type="button"
+                              onClick={() => onRemoveWorktree(g.cwd)}
+                            >
+                              Remove worktree
+                            </button>
+                          ) : (
+                            <button
+                              className="workspace-menu__item"
+                              type="button"
+                              onClick={() => onCreateWorktree(g.cwd)}
+                            >
+                              Create permanent worktree
+                            </button>
+                          )}
+                          <button
+                            className="workspace-menu__item"
+                            type="button"
+                            onClick={() => onStartWorkspaceRename(g.cwd)}
+                          >
+                            Edit name
                           </button>
                           <button
                             className="workspace-menu__item workspace-menu__item--danger"
                             type="button"
                             onClick={() => onRemoveWorkspace(g.cwd)}
                           >
-                            Remove project
+                            Remove
                           </button>
                         </div>
                       )}
                     </span>
                   </div>
+                  {renamingWorkspace === g.cwd ? (
+                    <form
+                      className="workspace-rename"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const next = new FormData(event.currentTarget).get("title");
+                        if (typeof next === "string") onCommitWorkspaceRename(g.cwd, next);
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        autoFocus
+                        aria-label={`Rename ${displayName}`}
+                        className="workspace-rename__input"
+                        defaultValue={displayName}
+                        name="title"
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            onCancelWorkspaceRename();
+                          }
+                        }}
+                      />
+                      <div className="workspace-rename__actions">
+                        <button className="workspace-rename__button" type="button" onClick={onCancelWorkspaceRename}>
+                          Cancel
+                        </button>
+                        <button className="workspace-rename__button workspace-rename__button--primary" type="submit">
+                          Save
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                   {!isCollapsed && (
                     <>
                       <div className="session-list">
