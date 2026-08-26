@@ -402,6 +402,7 @@ export class AppStore extends EventEmitter {
       this.sessions = sessions;
     } catch (err) {
       if (refreshSeq !== this.sessionsRefreshSeq) return;
+      if (this.maybeNoteAuthFailure(err)) return;
       this.error = err instanceof Error ? err.message : String(err);
     }
   }
@@ -466,7 +467,13 @@ export class AppStore extends EventEmitter {
     const mode = opts?.permissionMode ?? this.permissionMode;
     if (opts?.yolo) this.armYolo(true);
     const params: Record<string, unknown> = { cwd: this.cwd, mcpServers: [], _meta: this.permissionMeta(mode) };
-    const result = await this.client.request<any>(AcpMethod.SessionNew, params);
+    let result: any;
+    try {
+      result = await this.client.request<any>(AcpMethod.SessionNew, params);
+    } catch (err) {
+      this.maybeNoteAuthFailure(err);
+      throw err;
+    }
     const sessionId = result.sessionId as string;
     this.applySessionMeta(result);
     const epoch = this.adoptSession(sessionId);
@@ -511,6 +518,7 @@ export class AppStore extends EventEmitter {
       });
     } catch (error) {
       if (this.loadingSession?.epoch === epoch) this.loadingSession = null;
+      this.maybeNoteAuthFailure(error);
       throw error;
     }
     if (epoch !== this.sessionEpoch) return;
@@ -588,7 +596,7 @@ export class AppStore extends EventEmitter {
       await this.client.request(AcpMethod.SessionPrompt, { sessionId, prompt }, 30 * 60_000);
     } catch (err) {
       failed = true;
-      if (this.activeSessionId === sessionId) {
+      if (!this.maybeNoteAuthFailure(err) && this.activeSessionId === sessionId) {
         this.error = err instanceof Error ? err.message : String(err);
       }
     } finally {

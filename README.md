@@ -58,6 +58,7 @@ Open a folder with **File → Open Folder** (⌘O), then **New thread**.
 | --- | --- |
 | ⌘/Ctrl+N | New thread |
 | ⌘/Ctrl+O | Open folder |
+| ⌘/Ctrl+, | Settings |
 | ⌘/Ctrl+B | Toggle sidebar |
 | ⌘/Ctrl+D | Toggle review panel |
 | ⌘/Ctrl+J | Toggle terminal |

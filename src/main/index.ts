@@ -235,6 +235,7 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 app.on("before-quit", () => {
+  store.cancelLogin();
   store.agentTerminals.dispose();
   terminal.stop();
   store.client.stop();
