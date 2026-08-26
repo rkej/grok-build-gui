@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStd
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 
-type PtyHandle = {
+export type PtyHandle = {
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;
