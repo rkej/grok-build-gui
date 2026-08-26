@@ -25,6 +25,7 @@ import { useRunningLabel } from "./use-running-label";
 import { useThreadSearch } from "./use-thread-search";
 import { useTimelineScroll } from "./use-timeline-scroll";
 import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
+import { slashTabCompletion } from "./slash-completion";
 
 const EMPTY_TRANSCRIPT: readonly TranscriptItem[] = [];
 
@@ -374,6 +375,14 @@ export default function App() {
   }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, state, view, startNew]);
 
   const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab") {
+      const completion = slashTabCompletion(draft, slashOpen, slashItems);
+      if (completion) {
+        e.preventDefault();
+        completeSlashCommand(completion.name);
+        return;
+      }
+    }
     if (slashOptions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       e.preventDefault();
       const index = Math.max(0, slashOptions.findIndex((option) => option.value === selectedSlashOption));
@@ -402,6 +411,17 @@ export default function App() {
       }
       if (state?.running) onCancel();
     }
+  };
+
+  const completeSlashCommand = (name: string) => {
+    setDraft(`/${name} `);
+    setMentionOpen(false);
+    if (name === "model" || name === "effort" || name === "rewind") {
+      void loadSlashOptions(name);
+    } else {
+      closeSlashMenus();
+    }
+    composerRef.current?.focus();
   };
 
   const onPickSlash = (name: string) => {

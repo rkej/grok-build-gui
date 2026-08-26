@@ -13,6 +13,7 @@ import {
   StatusIcon,
   StopSquareIcon,
 } from "./icons";
+import { slashTabCompletion } from "./slash-completion";
 
 export type ComposerMenu = "none" | "model" | "effort" | "perm";
 export type ComposerDeliveryMode = "steer" | "followUp";
@@ -138,6 +139,7 @@ export function ComposerPanel({
   const effortLabel = efforts.find((e) => e.value === state.effort)?.label ?? state.effort;
   const hostItems = slashItems.filter((item) => item.section === "host");
   const runtimeItems = slashItems.filter((item) => item.section === "runtime");
+  const activeSlashItem = slashTabCompletion(draft, slashOpen, slashItems);
   const [dockOpen, setDockOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -261,7 +263,7 @@ export function ComposerPanel({
                     {runtimeItems.slice(0, 8).map((command) => (
                       <button
                         key={`runtime:${command.name}`}
-                        className="slash-menu__item slash-menu__item--skill"
+                        className={`slash-menu__item slash-menu__item--skill ${activeSlashItem === command ? "slash-menu__item--active" : ""}`}
                         type="button"
                         onClick={() => onPickSlash(command.name)}
                       >
@@ -284,7 +286,7 @@ export function ComposerPanel({
                     <span>App commands</span>
                   </div>
                   {hostItems.map((command) => (
-                    <button key={command.name} className="slash-menu__item" type="button" onClick={() => onPickSlash(command.name)}>
+                    <button key={command.name} className={`slash-menu__item ${activeSlashItem === command ? "slash-menu__item--active" : ""}`} type="button" onClick={() => onPickSlash(command.name)}>
                       <span className="slash-menu__icon">{slashIcon(command.name)}</span>
                       <span className="slash-menu__content">
                         <span className="slash-menu__line">
