@@ -125,6 +125,7 @@ export type ExtensionUiResponse =
 
 export type AuthState = {
   authenticated: boolean;
+  checking?: boolean;
   signingIn?: boolean;
   methodId?: string;
   email?: string;

@@ -8,7 +8,7 @@ import { GrokAcpClient } from "../acp/client.js";
 import { AcpMethod } from "../acp/methods.js";
 import type { JsonRpcMessage } from "../acp/rpc.js";
 import { asArray, unwrap } from "../shared/acp-util.js";
-import { authFromAuthenticateResult, isAuthError, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
+import { authFromAuthenticateResult, checkingAuth, isAuthError, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
 import type {
   AppSnapshot,
   AccountUsage,
@@ -85,7 +85,7 @@ export class AppStore extends EventEmitter {
   gui = loadGuiState();
   connected = false;
   grokVersion: string | null = null;
-  auth: AuthState = signedOutAuth();
+  auth: AuthState = checkingAuth();
   private loginChild: ChildProcess | null = null;
   private loginPromise: Promise<void> | null = null;
   private loginCancelled = false;
@@ -339,7 +339,6 @@ export class AppStore extends EventEmitter {
     this.connected = true;
     this.applyInitializeResult(this.client.initializeResult);
     if (!(await this.applyCachedAuth())) {
-      this.bump();
       void this.login();
       await this.refreshGit();
       await this.refreshCatalogs();
@@ -1289,6 +1288,7 @@ export class AppStore extends EventEmitter {
     this.auth = {
       ...this.auth,
       authenticated: reauth,
+      checking: false,
       signingIn: true,
       error: null,
     };
@@ -1401,12 +1401,6 @@ export class AppStore extends EventEmitter {
       this.auth = authFromAuthenticateResult(result, this.client.lastAuthMethodId ?? "cached_token");
       return true;
     } catch {
-      if (!this.auth.signingIn) {
-        this.auth = signedOutAuth({
-          loginUrl: this.auth.loginUrl,
-          deviceCode: this.auth.deviceCode,
-        });
-      }
       return false;
     }
   }
@@ -1438,7 +1432,7 @@ export class AppStore extends EventEmitter {
 
   private maybeNoteAuthFailure(err: unknown): boolean {
     if (!isAuthError(err)) return false;
-    if (this.auth.signingIn) return true;
+    if (this.auth.signingIn || this.auth.checking) return true;
     const wasAuthenticated = this.auth.authenticated;
     const message = err instanceof Error ? err.message : String(err);
     this.auth = signedOutAuth({

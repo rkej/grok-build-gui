@@ -4,6 +4,18 @@ import type { AuthState } from "./protocol.js";
 const AUTH_MESSAGE =
   /auth_required|authentication required|not authenticated|unauthoriz|unauthenticated|please (?:log|sign) in|invalid(?:_|\s+)(?:access[_\s-])?token|expired(?:_|\s+)(?:access[_\s-])?token|auth(?:entication)? (?:failed|expired|missing)|no (?:cached )?credential|cached_token/i;
 
+/** Initial AuthState while cached credentials are still being read. */
+export function checkingAuth(): AuthState {
+  return {
+    authenticated: false,
+    checking: true,
+    signingIn: false,
+    error: null,
+    loginUrl: null,
+    deviceCode: null,
+  };
+}
+
 /** Signed-out AuthState. Extra fields overlay the defaults. */
 export function signedOutAuth(partial: Partial<AuthState> = {}): AuthState {
   return {
@@ -13,7 +25,13 @@ export function signedOutAuth(partial: Partial<AuthState> = {}): AuthState {
     deviceCode: null,
     ...partial,
     authenticated: false,
+    checking: false,
   };
+}
+
+/** True while the shell should show a loader instead of the sign-in form. */
+export function credentialsPending(auth: AuthState): boolean {
+  return !auth.authenticated && Boolean(auth.checking || auth.signingIn);
 }
 
 export function authFromAuthenticateResult(result: unknown, methodId?: string): AuthState {
@@ -28,6 +46,7 @@ export function authFromAuthenticateResult(result: unknown, methodId?: string): 
   const subscription = meta.subscription_tier ?? meta.subscriptionTier;
   return {
     authenticated: true,
+    checking: false,
     signingIn: false,
     methodId: methodId ?? (typeof meta.methodId === "string" ? meta.methodId : undefined),
     email: typeof meta.email === "string" ? meta.email : undefined,
