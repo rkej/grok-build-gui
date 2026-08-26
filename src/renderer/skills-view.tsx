@@ -274,6 +274,7 @@ function CreateSkillDialog({
       error={error}
       busy={busy}
       onClose={onClose}
+      onSubmit={() => void submit()}
       footer={
         <>
           <button className="button button--secondary" type="button" disabled={busy} onClick={onAskGrok}>

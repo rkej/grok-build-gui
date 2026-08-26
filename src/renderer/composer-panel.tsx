@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, ReactNode, RefObject } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, ReactNode, RefObject } from "react";
 import type { AppSnapshot, ComposerAttachment, ContextUsage, PermissionMode, SlashOption } from "../shared/protocol";
 import { buildExtensionDockModel, ExtensionDialog, ExtensionDock, PermissionDialog } from "./extension-session-ui";
 import {
@@ -13,7 +13,8 @@ import {
   StatusIcon,
   StopSquareIcon,
 } from "./icons";
-import { slashTabCompletion } from "./slash-completion";
+import { mentionCandidatePath } from "./composer-navigation";
+import { slashCommandKey } from "./slash-completion";
 
 export type ComposerMenu = "none" | "model" | "effort" | "perm";
 export type ComposerDeliveryMode = "steer" | "followUp";
@@ -76,8 +77,10 @@ export function ComposerPanel({
   slashOptions,
   slashOptionTitle,
   selectedSlashOption,
+  selectedSlashCommand,
   mentionOpen,
   mentionHits,
+  selectedMentionIndex,
   openMenu,
   setOpenMenu,
   efforts,
@@ -109,8 +112,10 @@ export function ComposerPanel({
   slashOptions?: SlashOption[];
   slashOptionTitle?: string;
   selectedSlashOption?: string;
+  selectedSlashCommand?: string;
   mentionOpen: boolean;
   mentionHits: any[];
+  selectedMentionIndex?: number;
   openMenu: ComposerMenu;
   setOpenMenu: (v: ComposerMenu) => void;
   efforts: { id: string; value: string; label: string }[];
@@ -139,11 +144,17 @@ export function ComposerPanel({
   const effortLabel = efforts.find((e) => e.value === state.effort)?.label ?? state.effort;
   const hostItems = slashItems.filter((item) => item.section === "host");
   const runtimeItems = slashItems.filter((item) => item.section === "runtime");
-  const activeSlashItem = slashTabCompletion(draft, slashOpen, slashItems);
   const [dockOpen, setDockOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const menusRef = useRef<HTMLDivElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const dock = buildExtensionDockModel(state);
+
+  useEffect(() => {
+    menusRef.current?.querySelector<HTMLElement>(
+      ".slash-menu__item--active, .slash-menu__option--active, .mention-menu__item--active",
+    )?.scrollIntoView({ block: "nearest" });
+  }, [selectedSlashCommand, selectedSlashOption, selectedMentionIndex]);
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     onPickAttachments(Array.from(event.target.files ?? []));
@@ -235,7 +246,7 @@ export function ComposerPanel({
       >
         {dragActive ? <div className="composer__drop-indicator">Drop images or files to attach</div> : null}
         {(slashOpen || mentionOpen || (slashOptions && slashOptions.length > 0)) ? (
-          <div className="composer__menus">
+          <div className="composer__menus" ref={menusRef}>
             {slashOptions && slashOptions.length > 0 ? (
               <div className="slash-menu slash-menu--options" data-testid="slash-options-menu">
                 <div className="slash-menu__search">{slashOptionTitle ?? "Choose"}</div>
@@ -263,7 +274,7 @@ export function ComposerPanel({
                     {runtimeItems.slice(0, 8).map((command) => (
                       <button
                         key={`runtime:${command.name}`}
-                        className={`slash-menu__item slash-menu__item--skill ${activeSlashItem === command ? "slash-menu__item--active" : ""}`}
+                        className={`slash-menu__item slash-menu__item--skill ${selectedSlashCommand === slashCommandKey(command) ? "slash-menu__item--active" : ""}`}
                         type="button"
                         onClick={() => onPickSlash(command.name)}
                       >
@@ -286,7 +297,7 @@ export function ComposerPanel({
                     <span>App commands</span>
                   </div>
                   {hostItems.map((command) => (
-                    <button key={command.name} className={`slash-menu__item ${activeSlashItem === command ? "slash-menu__item--active" : ""}`} type="button" onClick={() => onPickSlash(command.name)}>
+                    <button key={command.name} className={`slash-menu__item ${selectedSlashCommand === slashCommandKey(command) ? "slash-menu__item--active" : ""}`} type="button" onClick={() => onPickSlash(command.name)}>
                       <span className="slash-menu__icon">{slashIcon(command.name)}</span>
                       <span className="slash-menu__content">
                         <span className="slash-menu__line">
@@ -311,9 +322,9 @@ export function ComposerPanel({
                     </div>
                   ) : (
                     mentionHits.slice(0, 12).map((node, index) => {
-                      const path = node.path ?? node.name ?? String(node);
+                      const path = mentionCandidatePath(node);
                       return (
-                        <button key={`${path}-${index}`} className="mention-menu__item" type="button" onClick={() => onPickMention(path)}>
+                        <button key={`${path}-${index}`} className={`mention-menu__item ${selectedMentionIndex === index ? "mention-menu__item--active" : ""}`} type="button" onClick={() => onPickMention(path)}>
                           <span className="mention-menu__icon"><FileIcon /></span>
                           <span className="mention-menu__content">
                             <span className="mention-menu__file">

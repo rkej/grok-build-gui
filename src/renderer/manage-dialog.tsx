@@ -6,6 +6,7 @@ export function ManageDialog({
   error,
   busy,
   onClose,
+  onSubmit,
   children,
   footer,
 }: {
@@ -14,6 +15,7 @@ export function ManageDialog({
   readonly error?: string;
   readonly busy?: boolean;
   readonly onClose: () => void;
+  readonly onSubmit?: () => void;
   readonly children: ReactNode;
   readonly footer: ReactNode;
 }) {
@@ -27,6 +29,13 @@ export function ManageDialog({
     if (event.key === "Escape" && !busy) {
       event.preventDefault();
       onClose();
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && onSubmit) {
+      const target = event.target as HTMLElement;
+      if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON" || event.nativeEvent.isComposing) return;
+      event.preventDefault();
+      onSubmit();
     }
   };
 

@@ -25,7 +25,8 @@ import { useRunningLabel } from "./use-running-label";
 import { useThreadSearch } from "./use-thread-search";
 import { useTimelineScroll } from "./use-timeline-scroll";
 import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
-import { slashTabCompletion } from "./slash-completion";
+import { moveSelectionIndex, mentionCandidatePath } from "./composer-navigation";
+import { moveSlashSelection, slashCommandKey, slashMenuItems, slashTabCompletion } from "./slash-completion";
 
 const EMPTY_TRANSCRIPT: readonly TranscriptItem[] = [];
 
@@ -53,6 +54,8 @@ export default function App() {
   const [slashOptions, setSlashOptions] = useState<SlashOption[]>([]);
   const [slashOptionTitle, setSlashOptionTitle] = useState("");
   const [selectedSlashOption, setSelectedSlashOption] = useState("");
+  const [selectedSlashCommand, setSelectedSlashCommand] = useState("");
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [diffFocusPath, setDiffFocusPath] = useState<string | null>(null);
   const [forkRequest, setForkRequest] = useState<{ itemId: string; preview?: string } | null>(null);
   const [forkSubmitting, setForkSubmitting] = useState(false);
@@ -218,12 +221,25 @@ export default function App() {
     const token = draft.split(/\s/)[0]?.slice(1).toLowerCase() ?? "";
     return builtinSlash(state).filter((c) => c.name.toLowerCase().includes(token) || c.title.toLowerCase().includes(token));
   }, [state, draft, slashOpen]);
+  const visibleSlashItems = useMemo(() => slashMenuItems(slashItems), [slashItems]);
+
+  useEffect(() => {
+    if (!slashOpen) {
+      setSelectedSlashCommand("");
+      return;
+    }
+    setSelectedSlashCommand((current) => {
+      if (visibleSlashItems.some((item) => slashCommandKey(item) === current)) return current;
+      return visibleSlashItems[0] ? slashCommandKey(visibleSlashItems[0]) : "";
+    });
+  }, [slashOpen, visibleSlashItems]);
 
   const closeSlashMenus = () => {
     setSlashOpen(false);
     setSlashOptions([]);
     setSlashOptionTitle("");
     setSelectedSlashOption("");
+    setSelectedSlashCommand("");
   };
 
   const loadSlashOptions = useCallback(async (name: string, filter = "") => {
@@ -375,22 +391,39 @@ export default function App() {
   }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, state, view, startNew]);
 
   const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Tab") {
-      const completion = slashTabCompletion(draft, slashOpen, slashItems);
+    if (slashOptions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      const current = slashOptions.findIndex((option) => option.value === selectedSlashOption);
+      const next = slashOptions[moveSelectionIndex(slashOptions.length, current, e.key === "ArrowDown" ? 1 : -1)];
+      if (next) setSelectedSlashOption(next.value);
+      return;
+    }
+    if (slashOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      const next = moveSlashSelection(slashItems, selectedSlashCommand, e.key === "ArrowDown" ? 1 : -1);
+      if (next) setSelectedSlashCommand(slashCommandKey(next));
+      return;
+    }
+    if (mentionOpen && mentionHits.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      setSelectedMentionIndex((current) => moveSelectionIndex(Math.min(mentionHits.length, 12), current, e.key === "ArrowDown" ? 1 : -1));
+      return;
+    }
+    if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+      const completion = slashTabCompletion(draft, slashOpen, slashItems, selectedSlashCommand);
       if (completion) {
         e.preventDefault();
         completeSlashCommand(completion.name);
         return;
       }
-    }
-    if (slashOptions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-      e.preventDefault();
-      const index = Math.max(0, slashOptions.findIndex((option) => option.value === selectedSlashOption));
-      const next = e.key === "ArrowDown"
-        ? slashOptions[(index + 1) % slashOptions.length]
-        : slashOptions[(index - 1 + slashOptions.length) % slashOptions.length];
-      if (next) setSelectedSlashOption(next.value);
-      return;
+      if (mentionOpen && mentionHits.length > 0) {
+        const candidate = mentionHits[Math.max(0, selectedMentionIndex)];
+        if (candidate) {
+          e.preventDefault();
+          pickMention(mentionCandidatePath(candidate));
+          return;
+        }
+      }
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -402,9 +435,14 @@ export default function App() {
       void submit(e.metaKey || e.ctrlKey ? "steer" : "followUp");
     }
     if (e.key === "Escape") {
+      const dismissingComposerUi = slashOpen || slashOptions.length > 0 || mentionOpen || openMenu !== "none";
       closeSlashMenus();
       setMentionOpen(false);
       setOpenMenu("none");
+      if (dismissingComposerUi) {
+        e.preventDefault();
+        return;
+      }
       if (editingQueuedMessageId) {
         onCancelQueuedEdit();
         return;
@@ -474,10 +512,21 @@ export default function App() {
     if (mentionTimer.current != null) window.clearTimeout(mentionTimer.current);
     if (at) {
       setMentionOpen(true);
+      setSelectedMentionIndex(0);
       mentionTimer.current = window.setTimeout(() => {
-        void api.fuzzy(at[1] ?? "").then((res) => setMentionHits(res?.files ?? res?.nodes ?? res?.result?.nodes ?? []));
+        void api.fuzzy(at[1] ?? "").then((res) => {
+          setMentionHits(res?.files ?? res?.nodes ?? res?.result?.nodes ?? []);
+          setSelectedMentionIndex(0);
+        });
       }, 120);
     } else setMentionOpen(false);
+  };
+
+  const pickMention = (path: string) => {
+    setDraft((current) => current.replace(/@([^\s]*)$/, `@${path} `));
+    setMentionOpen(false);
+    setSelectedMentionIndex(0);
+    composerRef.current?.focus();
   };
 
   const onToggleTool = useCallback((id: string) => {
@@ -573,23 +622,18 @@ export default function App() {
   });
 
   useEffect(() => {
-    let lastToggle = 0;
-    const toggleFind = () => {
+    const openFind = () => {
       if (view !== "threads") return;
-      const now = Date.now();
-      if (now - lastToggle < 80) return;
-      lastToggle = now;
-      if (threadSearch.isOpen) threadSearch.close();
-      else threadSearch.open();
+      threadSearch.open();
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
-        toggleFind();
+        openFind();
       }
     };
     window.addEventListener("keydown", onKey);
-    const unsub = api.onFindInThread(toggleFind);
+    const unsub = api.onFindInThread(openFind);
     const unsubSettings = api.onOpenSettings(() => {
       setView("settings");
       setSettingsSection("general");
@@ -692,8 +736,10 @@ export default function App() {
       slashOptions={slashOptions}
       slashOptionTitle={slashOptionTitle}
       selectedSlashOption={selectedSlashOption}
+      selectedSlashCommand={selectedSlashCommand}
       mentionOpen={mentionOpen}
       mentionHits={mentionHits}
+      selectedMentionIndex={selectedMentionIndex}
       openMenu={openMenu}
       setOpenMenu={setOpenMenu}
       efforts={efforts}
@@ -704,7 +750,7 @@ export default function App() {
       onCancel={onCancel}
       onPickSlash={onPickSlash}
       onPickSlashOption={onPickSlashOption}
-      onPickMention={(path) => { setDraft((d) => d.replace(/@([^\s]*)$/, `@${path} `)); setMentionOpen(false); }}
+      onPickMention={pickMention}
       attachments={attachments}
       onPickAttachments={onPickAttachments}
       onRemoveAttachment={onRemoveAttachment}
@@ -865,8 +911,10 @@ export default function App() {
             slashOptions={slashOptions}
             slashOptionTitle={slashOptionTitle}
             selectedSlashOption={selectedSlashOption}
+            selectedSlashCommand={selectedSlashCommand}
             mentionOpen={mentionOpen}
             mentionHits={mentionHits}
+            selectedMentionIndex={selectedMentionIndex}
             openMenu={openMenu}
             setOpenMenu={setOpenMenu}
             efforts={efforts}
@@ -880,7 +928,7 @@ export default function App() {
             onCancel={onCancel}
             onPickSlash={onPickSlash}
             onPickSlashOption={onPickSlashOption}
-            onPickMention={(path) => { setDraft((d) => d.replace(/@([^\s]*)$/, `@${path} `)); setMentionOpen(false); }}
+            onPickMention={pickMention}
             attachments={attachments}
             onPickAttachments={onPickAttachments}
             onRemoveAttachment={onRemoveAttachment}
