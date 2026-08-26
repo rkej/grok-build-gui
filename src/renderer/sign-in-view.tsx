@@ -8,7 +8,6 @@ export function SignInView({
   grokVersion,
   bootError,
   onSignIn,
-  onCancel,
   onOpenUrl,
 }: {
   readonly auth: AuthState;
@@ -17,16 +16,9 @@ export function SignInView({
   readonly grokVersion: string | null;
   readonly bootError: string | null;
   readonly onSignIn: () => void;
-  readonly onCancel: () => void;
   readonly onOpenUrl: (url: string) => void;
 }) {
-  const signingIn = Boolean(auth.signingIn);
-  const error = auth.error || (!connected && !signingIn ? bootError : null);
-  const status = signingIn
-    ? auth.deviceCode
-      ? "Enter this code in your browser to finish signing in."
-      : "Complete sign-in in your browser. This window will unlock when the Grok CLI finishes."
-    : "This desktop shell uses your Grok CLI session. Sign in to continue.";
+  const error = auth.error || (!connected ? bootError : null);
 
   return (
     <div className="shell shell--signin">
@@ -35,29 +27,18 @@ export function SignInView({
           <GrokMark />
         </div>
         <div className="sign-in__eyebrow">Grok Build</div>
-        <h1>{signingIn ? "Waiting for Grok CLI" : "Sign in to Grok"}</h1>
-        <p>{status}</p>
-        {auth.deviceCode ? (
-          <div className="sign-in__code" data-testid="sign-in-device-code">
-            {auth.deviceCode}
-          </div>
-        ) : null}
+        <h1>Sign in to Grok</h1>
+        <p>This desktop shell uses your Grok CLI session. Sign in to continue.</p>
         {error ? <div className="sign-in__error">{error}</div> : null}
         <div className="sign-in__actions">
           <button
             className="button button--primary"
             type="button"
             data-testid="sign-in-submit"
-            disabled={signingIn}
             onClick={onSignIn}
           >
-            {signingIn ? "Signing in…" : error ? "Try again" : "Sign in"}
+            {error ? "Try again" : "Sign in"}
           </button>
-          {signingIn ? (
-            <button className="button button--secondary" type="button" onClick={onCancel}>
-              Cancel
-            </button>
-          ) : null}
           {auth.loginUrl ? (
             <button
               className="button button--secondary"

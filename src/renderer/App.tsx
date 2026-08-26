@@ -6,7 +6,9 @@ import { DiffPanel } from "./diff-panel";
 import { ExtensionsView, type ExtensionsSection } from "./extensions-view";
 import { ForkModal, type ForkEnvironment } from "./fork-modal";
 import { NewThreadView } from "./new-thread-view";
+import { AuthLoader } from "./auth-loader";
 import { SignInView } from "./sign-in-view";
+import { credentialsPending } from "../shared/auth";
 import { SecondarySurface } from "./secondary-surface";
 import { SETTINGS_NAV, SettingsView, type SettingsSection } from "./settings-view";
 import { cwdName, Sidebar } from "./sidebar";
@@ -592,14 +594,25 @@ export default function App() {
   const runningLabel = useRunningLabel(Boolean(state?.running));
 
   if (!state) {
+    return <AuthLoader label="Connecting…" />;
+  }
+
+  if (credentialsPending(state.auth)) {
+    const signingIn = Boolean(state.auth.signingIn);
     return (
-      <div className="shell shell--loading">
-        <div className="loading-card">
-          <div className="loading-card__eyebrow">Grok Build</div>
-          <h1>Connecting to harness</h1>
-          <p>Starting grok agent stdio over ACP…</p>
-        </div>
-      </div>
+      <AuthLoader
+        label={
+          signingIn
+            ? state.auth.deviceCode
+              ? "Enter this code in your browser"
+              : "Signing in…"
+            : "Loading credentials…"
+        }
+        deviceCode={state.auth.deviceCode}
+        loginUrl={state.auth.loginUrl}
+        onCancel={signingIn ? () => void api.cancelLogin() : undefined}
+        onOpenUrl={(url) => void api.openExternal(url)}
+      />
     );
   }
 
@@ -612,7 +625,6 @@ export default function App() {
         grokVersion={state.grokVersion}
         bootError={state.error}
         onSignIn={() => void api.login()}
-        onCancel={() => void api.cancelLogin()}
         onOpenUrl={(url) => void api.openExternal(url)}
       />
     );

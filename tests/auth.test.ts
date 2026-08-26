@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   authFromAuthenticateResult,
+  checkingAuth,
+  credentialsPending,
   isAuthError,
   parseGrokLoginOutput,
   signedOutAuth,
@@ -39,8 +41,16 @@ test("authFromAuthenticateResult reads _meta fields", () => {
 });
 
 test("signedOutAuth always clears authenticated", () => {
-  const auth = signedOutAuth({ authenticated: true, signingIn: true, error: "nope" });
+  const auth = signedOutAuth({ authenticated: true, signingIn: true, checking: true, error: "nope" });
   assert.equal(auth.authenticated, false);
+  assert.equal(auth.checking, false);
   assert.equal(auth.signingIn, true);
   assert.equal(auth.error, "nope");
+});
+
+test("credentialsPending covers checking and signing-in, not the sign-in form", () => {
+  assert.equal(credentialsPending(checkingAuth()), true);
+  assert.equal(credentialsPending(signedOutAuth({ signingIn: true })), true);
+  assert.equal(credentialsPending(signedOutAuth()), false);
+  assert.equal(credentialsPending(authFromAuthenticateResult({}, "cached_token")), false);
 });

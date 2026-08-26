@@ -1,3 +1,41 @@
+.auth-loader {
+  -webkit-app-region: no-drag;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  width: min(360px, calc(100% - 48px));
+  text-align: center;
+}
+
+.auth-loader__spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--text-strong);
+  border-radius: var(--radius-round);
+  animation: auth-loader-spin 0.7s linear infinite;
+}
+
+@keyframes auth-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-loader__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 520;
+}
+
+.auth-loader__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
 .shell--signin {
   grid-template-columns: 1fr;
   place-items: center;

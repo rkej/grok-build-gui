@@ -19,6 +19,7 @@
 .shell--loading {
   grid-template-columns: 1fr;
   place-items: center;
+  -webkit-app-region: drag;
 }
 
 .shell--sidebar-collapsed {
