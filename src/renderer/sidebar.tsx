@@ -436,6 +436,8 @@ export function Sidebar({
                               onCommitRename(s.sessionId, title)
                             }
                             onCancelRename={onCancelRename}
+                            onMarkRead={() => onMarkRead(s.sessionId)}
+                            onCopySessionId={() => onCopySessionId(s.sessionId)}
                           />
                         ))}
                       </div>
@@ -476,6 +478,8 @@ export function Sidebar({
                                     onCommitRename(s.sessionId, title)
                                   }
                                   onCancelRename={onCancelRename}
+                                  onMarkRead={() => onMarkRead(s.sessionId)}
+                                  onCopySessionId={() => onCopySessionId(s.sessionId)}
                                 />
                               ))}
                             </div>
@@ -599,6 +603,8 @@ function ThreadRow({
   onStartRename,
   onCommitRename,
   onCancelRename,
+  onMarkRead,
+  onCopySessionId,
 }: {
   s: SessionSummary;
   active: boolean;
@@ -615,8 +621,10 @@ function ThreadRow({
   onStartRename: () => void;
   onCommitRename: (title: string) => void;
   onCancelRename: () => void;
+  onMarkRead: () => void;
+  onCopySessionId: () => void;
 }) {
-  const variant = indicator(s.activity);
+  const variant = indicator(s);
   if (renaming) {
     return (
       <form
@@ -776,6 +784,22 @@ function ThreadRow({
                     }
                   >
                     {archived ? "Restore" : "Archive"}
+                  </button>
+                  {s.unseen ? (
+                    <button
+                      className="workspace-menu__item"
+                      type="button"
+                      onClick={onMarkRead}
+                    >
+                      Mark as read
+                    </button>
+                  ) : null}
+                  <button
+                    className="workspace-menu__item"
+                    type="button"
+                    onClick={onCopySessionId}
+                  >
+                    Copy session id
                   </button>
                   <button
                     className="workspace-menu__item workspace-menu__item--danger"
