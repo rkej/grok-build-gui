@@ -7,7 +7,6 @@ const AUTH_MESSAGE =
 /** Signed-out AuthState. Extra fields overlay the defaults. */
 export function signedOutAuth(partial: Partial<AuthState> = {}): AuthState {
   return {
-    authenticated: false,
     signingIn: false,
     error: null,
     loginUrl: null,

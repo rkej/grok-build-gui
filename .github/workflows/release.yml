@@ -15,6 +15,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,6 +33,7 @@ jobs:
   macos:
     needs: validate
     runs-on: macos-latest
+    timeout-minutes: 45
     environment: release-signing
     permissions:
       contents: read
@@ -74,6 +76,7 @@ jobs:
   linux:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
@@ -101,6 +104,7 @@ jobs:
   draft:
     needs: [macos, linux]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: release-draft
     permissions:
       contents: write
@@ -123,6 +127,7 @@ jobs:
       - name: Create or update draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
