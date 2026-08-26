@@ -187,6 +187,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
               loadingTools={loadingTools}
               loadedToolContent={loadedToolContent}
               running={running}
+              runningLabel={runningLabel}
               onToggleItem={toggleItem}
               onViewFileInDiff={onViewFileInDiff}
               onFork={onFork}
@@ -252,6 +253,7 @@ function VirtualizedTranscript({
   loadingTools,
   loadedToolContent,
   running,
+  runningLabel,
   onToggleItem,
   onViewFileInDiff,
   onFork,
@@ -266,6 +268,7 @@ function VirtualizedTranscript({
   readonly loadingTools: Record<string, boolean>;
   readonly loadedToolContent?: Record<string, ToolCallState>;
   readonly running?: boolean;
+  readonly runningLabel?: string;
   readonly onToggleItem: (item: DisplayTimelineItem) => void;
   readonly onViewFileInDiff?: (path: string) => void;
   readonly onFork?: (itemId: string) => void;
@@ -375,7 +378,7 @@ function VirtualizedTranscript({
       </div>
       {running ? (
         <div className="timeline-activity">
-          <span className="timeline-activity__label">Working…</span>
+          <span className="timeline-activity__label">{runningLabel ?? "Working…"}</span>
         </div>
       ) : null}
     </>
