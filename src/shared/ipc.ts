@@ -37,6 +37,7 @@ export const ipc = {
   archive: "gb:archive",
   setGui: "gb:set-gui",
   login: "gb:login",
+  cancelLogin: "gb:cancel-login",
   refresh: "gb:refresh",
   openExternal: "gb:open-external",
   openPath: "gb:open-path",

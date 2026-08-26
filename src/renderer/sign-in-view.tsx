@@ -8,6 +8,7 @@ export function SignInView({
   grokVersion,
   bootError,
   onSignIn,
+  onCancel,
   onOpenUrl,
 }: {
   readonly auth: AuthState;
@@ -16,6 +17,7 @@ export function SignInView({
   readonly grokVersion: string | null;
   readonly bootError: string | null;
   readonly onSignIn: () => void;
+  readonly onCancel: () => void;
   readonly onOpenUrl: (url: string) => void;
 }) {
   const signingIn = Boolean(auth.signingIn);
@@ -51,6 +53,11 @@ export function SignInView({
           >
             {signingIn ? "Signing in…" : error ? "Try again" : "Sign in"}
           </button>
+          {signingIn ? (
+            <button className="button button--secondary" type="button" onClick={onCancel}>
+              Cancel
+            </button>
+          ) : null}
           {auth.loginUrl ? (
             <button
               className="button button--secondary"

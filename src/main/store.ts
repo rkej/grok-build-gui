@@ -88,6 +88,7 @@ export class AppStore extends EventEmitter {
   auth: AuthState = signedOutAuth();
   private loginChild: ChildProcess | null = null;
   private loginPromise: Promise<void> | null = null;
+  private loginCancelled = false;
   private reconnecting = false;
   cwd = process.cwd();
   models: ModelInfo[] = [];
@@ -1269,13 +1270,14 @@ export class AppStore extends EventEmitter {
   }
 
   cancelLogin(): void {
-    if (!this.loginChild) return;
-    this.loginChild.kill();
+    this.loginCancelled = true;
+    this.loginChild?.kill();
     this.loginChild = null;
   }
 
   private async runLogin(): Promise<void> {
     const reauth = this.auth.authenticated;
+    this.loginCancelled = false;
     this.auth = {
       ...this.auth,
       authenticated: reauth,
@@ -1315,6 +1317,10 @@ export class AppStore extends EventEmitter {
 
   private spawnGrokLogin(): Promise<void> {
     return new Promise((resolve, reject) => {
+      if (this.loginCancelled) {
+        reject(new Error("Sign-in cancelled."));
+        return;
+      }
       const env: NodeJS.ProcessEnv = { ...process.env };
       delete env.ELECTRON_RUN_AS_NODE;
       const child = spawn(this.client.grokBin, ["login"], {
@@ -1324,6 +1330,14 @@ export class AppStore extends EventEmitter {
       });
       this.loginChild = child;
       let output = "";
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.loginChild = null;
+        fn();
+      };
       const onData = (buf: Buffer | string) => {
         output += typeof buf === "string" ? buf : buf.toString("utf8");
         const parsed = parseGrokLoginOutput(output);
@@ -1342,22 +1356,24 @@ export class AppStore extends EventEmitter {
       child.stderr?.on("data", onData);
       const timer = setTimeout(() => {
         child.kill();
-        reject(new Error("Grok CLI login timed out. Try again."));
+        finish(() => reject(new Error("Grok CLI login timed out. Try again.")));
       }, LOGIN_TIMEOUT_MS);
       child.once("error", (err) => {
-        clearTimeout(timer);
-        this.loginChild = null;
-        reject(new Error(grokError(err)));
+        finish(() => reject(new Error(grokError(err))));
       });
       child.once("exit", (code) => {
-        clearTimeout(timer);
-        this.loginChild = null;
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        const detail = output.trim();
-        reject(new Error(detail || `grok login exited (${code ?? "unknown"})`));
+        finish(() => {
+          if (this.loginCancelled) {
+            reject(new Error("Sign-in cancelled."));
+            return;
+          }
+          if (code === 0) {
+            resolve();
+            return;
+          }
+          const detail = output.trim();
+          reject(new Error(detail || `grok login exited (${code ?? "unknown"})`));
+        });
       });
     });
   }

@@ -46,6 +46,32 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validate macOS release credentials
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
+            echo "::error::release-signing is missing MAC_CSC_LINK or MAC_CSC_KEY_PASSWORD"
+            exit 1
+          fi
+
+          api_key_complete=false
+          apple_id_complete=false
+          [[ -n "$APPLE_API_KEY" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER" ]] && api_key_complete=true
+          [[ -n "$APPLE_ID" && -n "$APPLE_APP_SPECIFIC_PASSWORD" && -n "$APPLE_TEAM_ID" ]] && apple_id_complete=true
+
+          if [[ "$api_key_complete" == "$apple_id_complete" ]]; then
+            echo "::error::configure exactly one complete notarization method in release-signing"
+            exit 1
+          fi
       - name: Build, sign, and notarize macOS packages
         run: npm run package:mac:release
         env:

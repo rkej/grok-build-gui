@@ -607,6 +607,7 @@ export default function App() {
         grokVersion={state.grokVersion}
         bootError={state.error}
         onSignIn={() => void api.login()}
+        onCancel={() => void api.cancelLogin()}
         onOpenUrl={(url) => void api.openExternal(url)}
       />
     );

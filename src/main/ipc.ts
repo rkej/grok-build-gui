@@ -65,6 +65,7 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.archive, (_e, sessionId: string, archived: boolean) => store.archive(sessionId, archived));
   ipcMain.handle(ipc.setGui, (_e, partial) => store.setGui(partial));
   ipcMain.handle(ipc.login, () => store.login());
+  ipcMain.handle(ipc.cancelLogin, () => store.cancelLogin());
   ipcMain.handle(ipc.refresh, async () => {
     await store.refreshSessions();
     if (store.activeSessionId) await store.refreshSessionExtras(store.activeSessionId);
