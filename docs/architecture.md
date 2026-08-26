@@ -12,10 +12,15 @@ renderer  --IPC-->  preload  --IPC-->  main AppStore  --ACP-->  grok agent stdio
 
 | Piece | Role |
 | --- | --- |
-| Renderer | React UI. No Node, no fs, no child_process. |
+| Renderer | React UI. No Node, no fs, no child_process. Sandboxed. |
 | Preload | `contextBridge.exposeInMainWorld("grokApp", …)` — the only API the UI gets. |
 | Main | Spawns `grok agent --no-leader stdio`, folds `session/update`, serves a snapshot over IPC. |
 | Grok CLI | Source of truth for sessions, tools, MCP, git worktrees, auth. |
+
+The renderer cannot open windows or navigate off the app origin. External
+links go through `shell.openExternal` and must be `http` or `https`. A
+second instance focuses the existing window instead of spawning another
+Grok child.
 
 ## Transcript
 

@@ -17,9 +17,10 @@ Report a vulnerability). Include:
 
 ## What this process can and cannot do
 
-The Electron renderer is isolated: no Node, no filesystem, no child_process.
-It talks to main only through the typed IPC surface in `src/preload` /
-`src/main/ipc.ts`.
+The Electron renderer is isolated: no Node, no filesystem, no child_process,
+and `sandbox: true`. It talks to main only through the typed IPC surface in
+`src/preload` / `src/main/ipc.ts`. Window opens and in-app navigations to
+non-app URLs are denied; http(s) links go to the OS browser.
 
 The **Grok agent child** (`grok agent --no-leader stdio`) is a local coding
 agent. It already has filesystem and process access comparable to the user
