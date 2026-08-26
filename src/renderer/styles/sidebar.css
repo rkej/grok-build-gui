@@ -2,9 +2,11 @@
   --sidebar-width: 292px;
   --titlebar-toggle-left: 86px;
   --titlebar-toggle-size: 30px;
+  --titlebar-navigation-gap: 2px;
   --titlebar-toggle-main-gap: 16px;
   --titlebar-collapsed-main-padding-left: calc(
-    var(--titlebar-toggle-left) + var(--titlebar-toggle-size) + var(--titlebar-toggle-main-gap)
+    var(--titlebar-toggle-left) + (var(--titlebar-toggle-size) * 3) +
+      (var(--titlebar-navigation-gap) * 2) + var(--titlebar-toggle-main-gap)
   );
   width: 100%;
   height: 100%;

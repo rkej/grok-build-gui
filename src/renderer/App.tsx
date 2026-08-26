@@ -988,7 +988,13 @@ export default function App() {
       <SidebarToggleButton
         collapsed={collapsed}
         shortcutLabel={shortcut}
+        previousShortcutLabel={isMac ? "⌘[" : "Ctrl+["}
+        nextShortcutLabel={isMac ? "⌘]" : "Ctrl+]"}
+        canGoBack={view === "threads" && canNavigateThreadHistory(threadHistory, -1, availableSessionIds)}
+        canGoForward={view === "threads" && canNavigateThreadHistory(threadHistory, 1, availableSessionIds)}
         onToggle={() => persistGui({ sidebarCollapsed: !collapsed })}
+        onGoBack={() => navigateThreadHistory(-1)}
+        onGoForward={() => navigateThreadHistory(1)}
       />
 
       {!collapsed && (
@@ -1072,10 +1078,6 @@ export default function App() {
           promptRailVisible={showPromptRail}
           onTogglePromptRail={() => persistGui({ showPromptRail: !showPromptRail })}
           panelsAvailable={view === "threads" && Boolean(state.activeSessionId)}
-          canGoBack={view === "threads" && canNavigateThreadHistory(threadHistory, -1, availableSessionIds)}
-          canGoForward={view === "threads" && canNavigateThreadHistory(threadHistory, 1, availableSessionIds)}
-          onGoBack={() => navigateThreadHistory(-1)}
-          onGoForward={() => navigateThreadHistory(1)}
         />
 
         {view === "new-thread" && (
