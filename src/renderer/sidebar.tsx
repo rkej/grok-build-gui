@@ -209,7 +209,7 @@ export function Sidebar({
         </div>
 
         <div className="sidebar__section-body">
-        {groups.length === 0 ? (
+          {groups.length === 0 ? (
           <div className="empty-state" data-testid="empty-state">
             <h2>No folders yet</h2>
             <p>
