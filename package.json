@@ -6,7 +6,7 @@
   "description": "Codex-style desktop client for the Grok Build harness.",
   "author": "Grok Build GUI contributors",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "main": "out/main/index.js",
   "type": "module",
