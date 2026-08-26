@@ -39,11 +39,13 @@ test("Tab completion only applies to an open, single-token slash command", () =>
   assert.equal(slashTabCompletion("/missing", true, []), undefined);
 });
 
-test("slash menu lists only Grok-advertised commands", () => {
+test("slash menu lists Grok-advertised commands that have desktop functionality", () => {
   const items = grokSlashItems({
     commands: [
       { name: "compact", description: "Compress conversation history" },
       { name: "/context", description: "Show context usage" },
+      { name: "session-info", description: "Show session details" },
+      { name: "workflow", description: "Launch a saved workflow" },
       { name: "compact", description: "duplicate" },
       { name: "", description: "ignored" },
     ],
@@ -52,7 +54,8 @@ test("slash menu lists only Grok-advertised commands", () => {
     ],
   });
 
-  assert.deepEqual(items.map((item) => item.name), ["compact", "context"]);
+  assert.deepEqual(items.map((item) => item.name), ["compact", "workflow"]);
+  assert.equal(items.some((item) => item.name === "context" || item.name === "session-info"), false);
   assert.equal(items.some((item) => item.name === "review" || item.name === "new" || item.name === "mcp"), false);
 });
 

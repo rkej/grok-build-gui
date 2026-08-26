@@ -18,6 +18,9 @@ export function slashName(value: string | undefined): string {
   return (value ?? "").replace(/^\//, "").trim();
 }
 
+/** ACP-advertised commands that only drive TUI overlays this shell does not implement. */
+const INERT_SLASH_COMMANDS = new Set(["context", "session-info", "status", "info"]);
+
 export function grokSlashItems(state: {
   commands: readonly SlashCommand[];
   skills?: readonly {
@@ -40,7 +43,7 @@ export function grokSlashItems(state: {
     const name = slashName(command.name);
     if (!name) continue;
     const key = name.toLowerCase();
-    if (seen.has(key)) continue;
+    if (INERT_SLASH_COMMANDS.has(key) || seen.has(key)) continue;
     seen.add(key);
     items.push({
       name,
