@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "../src/main/session-scope.js";
+import { canSettleSessionFromNotification, isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "../src/main/session-scope.js";
 
 test("sessionIdFromParams reads top-level, nested update, and _meta", () => {
   assert.equal(sessionIdFromParams({ sessionId: "a" }), "a");
@@ -31,4 +31,11 @@ test("session load replay is suppressed only for the current thread epoch", () =
   assert.equal(isActiveSessionLoad(loading, "b", 4), false);
   assert.equal(isActiveSessionLoad(loading, "a", 5), false);
   assert.equal(isActiveSessionLoad(null, "a", 4), false);
+});
+
+test("turn completion cannot settle a prompt whose request is still in flight", () => {
+  const inFlight = new Set(["a"]);
+  assert.equal(canSettleSessionFromNotification("a", inFlight), false);
+  assert.equal(canSettleSessionFromNotification("b", inFlight), true);
+  assert.equal(canSettleSessionFromNotification(null, inFlight), false);
 });

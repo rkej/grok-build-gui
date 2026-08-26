@@ -54,7 +54,7 @@ import { parseExtensionDialog } from "./extension-ui.js";
 import { sessionDir } from "./paths.js";
 import { parseModels, parseSlashCommands, resolveSessionActivity, sessionTitle } from "./session-meta.js";
 import { childSessionStub, listSubagentChildren, parentIdFromDisk, parentIdFromSessionRow } from "./session-parent.js";
-import { isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
+import { canSettleSessionFromNotification, isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
 import { MAX_LOADED_TOOL_PAYLOADS } from "../shared/loaded-tool-cache.js";
 import { applySessionUpdate, compactToolForTransport, createFold, isTerminalToolStatus, normalizeTool, replayJsonl, type TranscriptFold } from "./transcript.js";
 import { parseContextUsage } from "./usage.js";
@@ -1709,7 +1709,7 @@ export class AppStore extends EventEmitter {
         // settles (for example while post-turn hooks are still running). Keep
         // the thread visibly working until the request lifecycle actually
         // finishes; sendPrompt's finally block owns that transition.
-        if (this.activeSessionId && !this.inFlightPrompts.has(this.activeSessionId)) {
+        if (canSettleSessionFromNotification(this.activeSessionId, this.inFlightPrompts)) {
           this.markSessionActivity(this.activeSessionId, "completed");
           this.running = false;
         }
@@ -1830,7 +1830,7 @@ export class AppStore extends EventEmitter {
       onTurnComplete: () => {
         // The stream can report turn completion before session/prompt returns.
         // Do not clear the sidebar's working state while that RPC is in flight.
-        if (this.activeSessionId && !this.inFlightPrompts.has(this.activeSessionId)) {
+        if (canSettleSessionFromNotification(this.activeSessionId, this.inFlightPrompts)) {
           this.markSessionActivity(this.activeSessionId, "completed");
           this.running = false;
         }

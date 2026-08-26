@@ -48,6 +48,17 @@ export function isActiveSessionLoad(
   );
 }
 
+/**
+ * Stream completion can precede the session/prompt response. In that case the
+ * request lifecycle remains the authoritative signal that the thread is busy.
+ */
+export function canSettleSessionFromNotification(
+  sessionId: string | null,
+  inFlightSessionIds: ReadonlySet<string>,
+): sessionId is string {
+  return Boolean(sessionId && !inFlightSessionIds.has(sessionId));
+}
+
 function readId(value: unknown): string | null {
   return typeof value === "string" && value ? value : null;
 }
