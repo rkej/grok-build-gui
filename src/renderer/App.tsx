@@ -354,12 +354,29 @@ export default function App() {
     }
   }, [api, state]);
 
+  const persistDraft = useCallback((key: string, text: string) => {
+    if (!key) return;
+    draftsRef.current = { ...draftsRef.current, [key]: text };
+    void api.setComposerDraft(key, text);
+  }, [api]);
+
+  const scheduleDraftPersist = useCallback((key: string, text: string) => {
+    if (!key) return;
+    draftsRef.current = { ...draftsRef.current, [key]: text };
+    if (draftTimer.current != null) window.clearTimeout(draftTimer.current);
+    draftTimer.current = window.setTimeout(() => {
+      draftTimer.current = null;
+      void api.setComposerDraft(key, text);
+    }, 400);
+  }, [api]);
+
   const startNew = useCallback(async (prompt?: string, promptAttachments: readonly ComposerAttachment[] = []) => {
     setView("threads");
     setDraft("");
+    if (draftKeyRef.current) persistDraft(draftKeyRef.current, "");
     await api.newSession(undefined, { worktree: environment === "worktree" });
     if (prompt?.trim()) await api.prompt(prompt, promptAttachments);
-  }, [api, environment]);
+  }, [api, environment, persistDraft]);
 
   const onPickAttachments = useCallback((files: File[]) => {
     for (const file of files) {
@@ -440,6 +457,7 @@ export default function App() {
       setDraft("");
       closeSlashMenus();
       if (name === "new") { setView("new-thread"); return; }
+      if (name === "tree") { void openTreeModal(); return; }
       if (name === "fork") { await api.fork(); return; }
       if (name === "compact") { await api.compact(rest.join(" ")); return; }
       if (name === "plan") { await api.setMode("plan"); return; }
@@ -454,8 +472,9 @@ export default function App() {
       return;
     }
     setDraft("");
+    if (draftKeyRef.current) persistDraft(draftKeyRef.current, "");
     applyStateSnapshot(await api.prompt(text, promptAttachments, state.running ? { deliverAs: deliveryMode ?? "followUp" } : undefined));
-  }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, state, view, startNew]);
+  }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, persistDraft, state, view, startNew]);
 
   const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOptions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
