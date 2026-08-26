@@ -3,6 +3,7 @@ out
 dist
 dist-electron
 release
+resources/icon.png
 .DS_Store
 logs
 *.log

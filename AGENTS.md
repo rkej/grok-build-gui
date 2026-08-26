@@ -33,6 +33,7 @@ npm run dev
 npm run typecheck
 npm test
 npm run build
+npm run package:dir
 ```
 
 ## Safety

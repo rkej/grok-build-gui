@@ -7,7 +7,7 @@ Session files under `~/.grok/sessions` stay the source of truth, the same way
 [pi-gui](https://github.com/minghinmatthewlam/pi-gui) sits on `pi` and Codex
 clients sit on `codex app-server`.
 
-It is not an official xAI product.
+**It is not an official xAI product.**
 
 ## What it talks to
 
@@ -23,15 +23,17 @@ transcript, tools, approvals, git changes, MCP, models, and usage.
 
 ## Features
 
-- Thread sidebar + inbox (needs-input / running)
-- Streaming transcript with thoughts, tool calls, and plans
-- Composer with `/` commands and `@` file mentions
+- Thread sidebar grouped by workspace, with pin / archive / drag-reorder
+- Streaming transcript: thoughts, grouped tool summaries, plans
+- Lazy tool payloads (labels in RAM, diffs loaded on expand)
+- Virtualized timeline for long threads
+- Composer with `/` commands, `@` file mentions, and image paste
 - Model, reasoning effort, and permission mode (`ask` / `plan` / `auto` / `always-approve`)
 - Inline permission cards for `session/request_permission`
-- Diff/review panel from `_x.ai/git/status`
-- Worktree-aware session metadata from the Grok harness
-- MCP / skills / settings views
-- Resume, fork, compact, rename, pin, delete via Grok ACP extensions
+- Diff/review panel, integrated terminal, thread find (⌘F)
+- Worktrees, fork-from-message, OS notifications when a run finishes
+- MCP / skills / settings, weekly SuperGrok usage in the sidebar
+- Resume, compact, rename, pin, delete via Grok ACP extensions
 
 ## Requirements
 
@@ -39,7 +41,11 @@ transcript, tools, approvals, git changes, MCP, models, and usage.
 - Authenticated Grok CLI (`~/.grok/bin/grok` or `GROK_BIN`)
 - `grok login`, or `XAI_API_KEY`
 
-## Run
+The packaged app does **not** bundle the Grok CLI. Install and authenticate
+`grok` first. macOS `.app` launches have a stripped `PATH`; the app prepends
+`~/.grok/bin`, `/opt/homebrew/bin`, and `/usr/local/bin`.
+
+## Run from source
 
 ```bash
 npm install
@@ -55,7 +61,21 @@ Open a folder with **File → Open Folder** (⌘O), then **New thread**.
 | ⌘/Ctrl+B | Toggle sidebar |
 | ⌘/Ctrl+D | Toggle review panel |
 | ⌘/Ctrl+J | Toggle terminal |
+| ⌘/Ctrl+F | Find in thread |
 | ⌘/Ctrl+Shift+R | Rename current thread |
+
+## Package a local build
+
+Unsigned desktop builds (no Apple notarization):
+
+```bash
+npm run package:dir    # unpacked app, fastest to try
+npm run package:mac    # .dmg + .zip (macOS)
+npm run package:linux  # AppImage
+```
+
+Gatekeeper will warn on unsigned macOS builds. That’s expected until a signing
+identity is configured.
 
 ## Architecture
 
@@ -70,8 +90,9 @@ renderer  --IPC-->  preload  --IPC-->  main AppStore  --ACP-->  grok agent stdio
 - `src/renderer` — pi-gui/Codex layout: sidebar, timeline, composer, review
 - `src/shared` — protocol types and pure helpers
 
-See [docs/architecture.md](docs/architecture.md) for the process model and
-[SECURITY.md](SECURITY.md) for the trust boundary.
+See [docs/architecture.md](docs/architecture.md) for the process model,
+[SECURITY.md](SECURITY.md) for the trust boundary, and [NOTICE](NOTICE) for
+attribution.
 
 Visual language is adapted from pi-gui's Codex tokens (4px spacing, compact
 type, hairline elevation). Runtime behavior is Grok's, not a reimplementation.
@@ -82,6 +103,7 @@ type, hairline elevation). Runtime behavior is Grok's, not a reimplementation.
 npm run typecheck
 npm test
 npm run build
+npm run ci
 ```
 
 Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).

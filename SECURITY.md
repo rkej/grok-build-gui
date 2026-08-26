@@ -35,4 +35,6 @@ files), and external URLs must be `http(s)`.
 - Bugs that require an already-compromised Grok CLI or a stolen `~/.grok/auth.json`
 - Prompt injection against the Grok agent (report those to the Grok CLI /
   xAI, not this UI)
-- Unsigned local builds and lack of notarization — packaging is not set up yet
+- Unsigned local builds (`npm run package`). Notarization and an Apple signing
+  identity are not part of this repository yet. Treat those binaries as
+  developer artifacts, not distribution-ready releases.

@@ -17,6 +17,7 @@ npm run dev          # Electron app, hot reload
 npm run typecheck
 npm test
 npm run build
+npm run package:dir  # unpacked desktop build (unsigned)
 ```
 
 macOS is the source of truth for desktop UI. Linux is fine for typecheck,

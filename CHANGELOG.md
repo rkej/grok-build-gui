@@ -13,6 +13,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - GitHub Actions CI for typecheck, unit tests, and production build
 - Unit tests for session scoping, plan merge, path confinement, and JSON-RPC classify
 - Contributor-facing `AGENTS.md` (root and path-scoped)
+- Unsigned local packaging (`npm run package:mac` / `package:linux`)
+- Renderer sandbox, single-instance lock, and http(s)-only window opens
+- PATH defaults so packaged apps still find `~/.grok/bin/grok` and Homebrew
+
+### Security
+
+- Removed a local-only renderer helper that wrote to the integrated terminal
 
 ## [0.1.0] - 2026-08-21
 
