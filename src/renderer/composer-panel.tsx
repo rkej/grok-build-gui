@@ -102,8 +102,6 @@ export function ComposerPanel({
   const stop = state.running && !hasInput;
   const modelName = state.models.find((m) => m.modelId === state.currentModelId)?.name ?? state.currentModelId ?? "Choose model";
   const effortLabel = efforts.find((e) => e.value === state.effort)?.label ?? state.effort;
-  const hostItems = slashItems.filter((item) => item.section === "host");
-  const runtimeItems = slashItems.filter((item) => item.section === "runtime");
   const [dockOpen, setDockOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const menusRef = useRef<HTMLDivElement | null>(null);
