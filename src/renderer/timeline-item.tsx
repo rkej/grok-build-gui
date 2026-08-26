@@ -89,10 +89,19 @@ export const TimelineItem = memo(function TimelineItem({
 
   if (item.kind === "thought") {
     if (showThoughts === false) return null;
+    const text = item.text.trim();
+    if (!text && !item.streaming) return null;
     return (
-      <div className="timeline-activity">
-        <span className="timeline-activity__label">Thinking</span>
-      </div>
+      <details className="timeline-thought" open={Boolean(item.streaming)} data-testid="timeline-thought">
+        <summary className="timeline-thought__summary">
+          <span className="timeline-activity__label">{item.streaming ? "Thinking" : "Thought"}</span>
+        </summary>
+        {text ? (
+          <div className="timeline-thought__body">
+            <MessageMarkdown text={text} />
+          </div>
+        ) : null}
+      </details>
     );
   }
 

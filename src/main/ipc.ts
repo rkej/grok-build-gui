@@ -3,6 +3,7 @@ import { ipc } from "../shared/ipc.js";
 import { isHttpUrl } from "../shared/url.js";
 import { isInside } from "../shared/workspace-path.js";
 import { grokHome } from "./paths.js";
+import { isInside } from "../shared/workspace-path.js";
 import type { AppStore } from "./store.js";
 import type { TerminalHost } from "./terminal.js";
 

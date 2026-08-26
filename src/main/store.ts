@@ -839,6 +839,9 @@ export class AppStore extends EventEmitter {
       this.resetTranscript();
       this.emitTranscriptChange();
     }
+    this.gui.pinned = this.gui.pinned.filter((id) => id !== sessionId);
+    this.gui.archived = this.gui.archived.filter((id) => id !== sessionId);
+    saveGuiState(this.gui);
     await this.refreshSessions();
     this.bump();
   }
@@ -885,11 +888,16 @@ export class AppStore extends EventEmitter {
 
   async compact(note?: string): Promise<void> {
     if (!this.activeSessionId) return;
+    const sessionId = this.activeSessionId;
     await this.client.request(AcpMethod.XaiCompact, {
-      sessionId: this.activeSessionId,
+      sessionId,
       context: note,
     });
-    await this.refreshSessionExtras(this.activeSessionId);
+    await this.refreshSessionExtras(sessionId);
+    if (this.activeSessionId !== sessionId) return;
+    this.transcript.items = this.readPersistedTranscript(sessionId, this.cwd);
+    this.rebuildTranscriptIndexes();
+    this.emitTranscriptChange();
     this.bump();
   }
 

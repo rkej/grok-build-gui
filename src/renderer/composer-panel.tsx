@@ -331,7 +331,7 @@ export function ComposerPanel({
 
         <textarea
           ref={composerRef}
-          className="new-thread__textarea composer__textarea"
+          className="composer__textarea"
           aria-label="Composer"
           data-testid="composer"
           rows={1}

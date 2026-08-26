@@ -269,10 +269,11 @@ export function Sidebar({
                     }}
                   >
                     <button
-                      className="workspace-row__select workspace-row__select--draggable"
+                      aria-expanded={!isCollapsed}
+                      aria-label={isCollapsed ? `Expand ${cwdName(g.cwd)}` : `Collapse ${cwdName(g.cwd)}`}
+                      className="workspace-row__collapse"
                       type="button"
                       onClick={() => onToggleWorkspace(g.cwd)}
-                      onDoubleClick={() => onSelectWorkspace(g.cwd)}
                     >
                       <span
                         className="workspace-row__icon"
@@ -285,6 +286,12 @@ export function Sidebar({
                           <FolderIcon />
                         </span>
                       </span>
+                    </button>
+                    <button
+                      className="workspace-row__select workspace-row__select--draggable"
+                      type="button"
+                      onClick={() => onSelectWorkspace(g.cwd)}
+                    >
                       <span className="workspace-row__name">
                         {cwdName(g.cwd)}
                       </span>

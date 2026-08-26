@@ -552,6 +552,29 @@
   color: var(--muted-soft);
 }
 
+.timeline-thought {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.timeline-thought__summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted-soft);
+  font-size: 13px;
+}
+
+.timeline-thought__summary::-webkit-details-marker {
+  display: none;
+}
+
+.timeline-thought__body {
+  margin-top: 6px;
+  color: var(--muted-strong);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 /* ---- Tool calls --------------------------------------------------------- */
 
 .timeline-tool {
