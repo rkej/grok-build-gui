@@ -19,3 +19,23 @@ export function formatRelativeTime(value: string): string {
 
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(timestamp);
 }
+
+export function formatMessageTimestamp(at: number, now = Date.now()): string {
+  if (!Number.isFinite(at) || at <= 0) return "";
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const current = new Date(now);
+  const sameDay = date.toDateString() === current.toDateString();
+  const sameYear = date.getFullYear() === current.getFullYear();
+  if (sameDay) {
+    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
