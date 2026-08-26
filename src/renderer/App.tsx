@@ -28,6 +28,7 @@ import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
 import { shouldApplySnapshot } from "../shared/snapshot-order";
 import { composerEscapeAction, moveSelectionIndex, mentionCandidatePath } from "./composer-navigation";
 import { grokSlashItems, moveSlashSelection, slashCommandKey, slashMenuItems, slashTabCompletion } from "./slash-completion";
+import { canNavigateThreadHistory, EMPTY_THREAD_HISTORY, threadHistoryTarget, visitThread, type ThreadHistory } from "./thread-history";
 
 const EMPTY_TRANSCRIPT: readonly TranscriptItem[] = [];
 
@@ -70,7 +71,14 @@ export default function App() {
   const mentionTimer = useRef<number | null>(null);
   const stateRevRef = useRef(-1);
   const stateInstanceRef = useRef<string | null>(null);
+  const [threadHistory, setThreadHistory] = useState<ThreadHistory>(EMPTY_THREAD_HISTORY);
+  const threadHistoryRef = useRef<ThreadHistory>(EMPTY_THREAD_HISTORY);
   const api = window.grokApp;
+
+  const commitThreadHistory = useCallback((next: ThreadHistory) => {
+    threadHistoryRef.current = next;
+    setThreadHistory(next);
+  }, []);
 
   const applyStateSnapshot = useCallback((snapshot: AppSnapshot) => {
     if (!shouldApplySnapshot(
@@ -85,6 +93,13 @@ export default function App() {
   const resyncState = useCallback(() => {
     void api.getState().then(applyStateSnapshot);
   }, [api, applyStateSnapshot]);
+
+  useEffect(() => {
+    const sessionId = state?.activeSessionId;
+    if (!sessionId) return;
+    const next = visitThread(threadHistoryRef.current, sessionId);
+    if (next !== threadHistoryRef.current) commitThreadHistory(next);
+  }, [commitThreadHistory, state?.activeSessionId]);
 
   useEffect(() => {
     const unsubState = api.onState(applyStateSnapshot);
@@ -170,10 +185,36 @@ export default function App() {
     };
   }, [openMenu, environmentMenuOpen, workspaceMenu, threadMenu]);
 
+  const availableSessionIds = useMemo(
+    () => new Set((state?.sessions ?? []).map((session) => session.sessionId)),
+    [state?.sessions],
+  );
+
+  const navigateThreadHistory = useCallback((direction: -1 | 1) => {
+    const target = threadHistoryTarget(threadHistoryRef.current, direction, availableSessionIds);
+    if (!target) return;
+    const session = state?.sessions.find((candidate) => candidate.sessionId === target.sessionId);
+    if (!session) return;
+    commitThreadHistory(target.history);
+    setView("threads");
+    setThreadMenu(null);
+    void api.openSession(session.sessionId, session.cwd);
+  }, [api, availableSessionIds, commitThreadHistory, state?.sessions]);
+
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
       const meta = event.metaKey || event.ctrlKey;
       if (!meta) return;
+      if (event.key === "[" && !event.shiftKey) {
+        event.preventDefault();
+        navigateThreadHistory(-1);
+        return;
+      }
+      if (event.key === "]" && !event.shiftKey) {
+        event.preventDefault();
+        navigateThreadHistory(1);
+        return;
+      }
       const inTerminal = isEventInsideTerminal(event);
       if (inTerminal && event.key.toLowerCase() !== "j") return;
       if (event.key === "," && !event.shiftKey) {
@@ -211,7 +252,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [api, state]);
+  }, [api, navigateThreadHistory, state]);
 
   const grouped = useMemo(
     () => groupSessionsByWorkspace(state?.sessions ?? [], state?.cwd, state?.gui.rootCwd, state?.gui.workspaces, state?.gui.pinned),
