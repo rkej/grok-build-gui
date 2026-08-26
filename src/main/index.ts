@@ -142,6 +142,12 @@ function installMenu(): void {
           accelerator: "CmdOrCtrl+F",
           click: () => win?.webContents.send(ipc.findInThread),
         },
+        { type: "separator" },
+        {
+          label: "Settings",
+          accelerator: "CmdOrCtrl+,",
+          click: () => win?.webContents.send(ipc.openSettings),
+        },
       ],
     },
     { role: "viewMenu" },

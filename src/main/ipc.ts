@@ -81,6 +81,12 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.installPlugin, (_e, source: string, trust: boolean) => store.installPlugin(source, trust));
   ipcMain.handle(ipc.setPluginEnabled, (_e, name: string, enabled: boolean) => store.setPluginEnabled(name, enabled));
   ipcMain.handle(ipc.uninstallPlugin, (_e, name: string) => store.uninstallPlugin(name));
+  ipcMain.handle(ipc.toggleWindowMaximize, () => {
+    const win = getWindow();
+    if (!win || win.isDestroyed()) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
   ipcMain.handle(ipc.openExternal, (_e, url: string) => {
     if (!isHttpUrl(url)) throw new Error("Only http(s) URLs can be opened.");
     return shell.openExternal(url);
