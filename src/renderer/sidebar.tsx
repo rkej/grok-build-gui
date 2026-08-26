@@ -208,6 +208,7 @@ export function Sidebar({
           </div>
         </div>
 
+        <div className="sidebar__section-body">
         {groups.length === 0 ? (
           <div className="empty-state" data-testid="empty-state">
             <h2>No folders yet</h2>
@@ -493,6 +494,7 @@ export function Sidebar({
             })}
           </div>
         )}
+        </div>
       </div>
       <UsageFooter accountUsage={accountUsage} auth={auth} />
     </aside>

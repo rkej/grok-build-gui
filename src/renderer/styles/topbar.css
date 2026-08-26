@@ -134,6 +134,8 @@
   color: var(--muted-strong);
   font-size: 12px;
   font-weight: 520;
+  letter-spacing: 0;
+  text-transform: none;
   opacity: 0;
   pointer-events: none;
   transition:
