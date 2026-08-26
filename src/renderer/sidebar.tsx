@@ -493,7 +493,7 @@ export function Sidebar({
               );
             })}
           </div>
-        )}
+          )}
         </div>
       </div>
       <UsageFooter accountUsage={accountUsage} auth={auth} />

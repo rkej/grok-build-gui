@@ -354,6 +354,26 @@ export default function App() {
     }
   }, [api, state]);
 
+  const openTreeModal = useCallback(async () => {
+    if (!state?.activeSessionId) {
+      setView("threads");
+      return;
+    }
+    setSlashOpen(false);
+    setSlashOptions([]);
+    setTreeOpen(true);
+    setTreeLoading(true);
+    setTreeError(undefined);
+    try {
+      setTreePoints(await api.rewindPoints());
+    } catch (error) {
+      setTreeError(error instanceof Error ? error.message : String(error));
+      setTreePoints([]);
+    } finally {
+      setTreeLoading(false);
+    }
+  }, [api, state?.activeSessionId]);
+
   const persistDraft = useCallback((key: string, text: string) => {
     if (!key) return;
     draftsRef.current = { ...draftsRef.current, [key]: text };
@@ -474,7 +494,7 @@ export default function App() {
     setDraft("");
     if (draftKeyRef.current) persistDraft(draftKeyRef.current, "");
     applyStateSnapshot(await api.prompt(text, promptAttachments, state.running ? { deliverAs: deliveryMode ?? "followUp" } : undefined));
-  }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, persistDraft, state, view, startNew]);
+  }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, openTreeModal, persistDraft, state, view, startNew]);
 
   const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOptions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -568,6 +588,7 @@ export default function App() {
     }
     closeSlashMenus();
     if (name === "new") { setView("new-thread"); setDraft(""); return; }
+    if (name === "tree") { void openTreeModal(); return; }
     if (name === "fork") { void api.fork(); return; }
     if (name === "plan") { void api.setMode("plan"); return; }
     if (name === "always-approve") { void api.setMode("always-approve"); return; }
@@ -590,6 +611,8 @@ export default function App() {
 
   const onDraftChange = (value: string) => {
     setDraft(value);
+    draftValueRef.current = value;
+    if (draftKeyRef.current) scheduleDraftPersist(draftKeyRef.current, value);
     const start = value.slice(0, composerRef.current?.selectionStart ?? value.length);
     const optionMatch = start.match(/^\/(model|effort|rewind)(?:\s+(.*))?$/);
     if (optionMatch) {
@@ -698,8 +721,11 @@ export default function App() {
   };
 
   const openNewThread = () => {
+    if ((state?.gui.workspaces ?? []).length === 0) {
+      void api.pickFolder();
+      return;
+    }
     setView("new-thread");
-    setDraft("");
     focusComposer();
   };
 
@@ -730,8 +756,11 @@ export default function App() {
       setSettingsSection("general");
     });
     const unsubNewThread = api.onOpenNewThread(() => {
+      if ((state?.gui.workspaces ?? []).length === 0) {
+        void api.pickFolder();
+        return;
+      }
       setView("new-thread");
-      setDraft("");
       window.setTimeout(() => composerRef.current?.focus(), 0);
     });
     const unsubRename = api.onRenameCurrentThread(() => {
