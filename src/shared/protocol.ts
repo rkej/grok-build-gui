@@ -43,6 +43,7 @@ export type SessionSummary = {
   isWorktree?: boolean;
   kind?: string;
   parentSessionId?: string;
+  unseen?: boolean;
 };
 
 export type ToolCallState = {
@@ -334,6 +335,12 @@ export type GuiState = {
   themeMode: ThemeMode;
   themePresetId: ThemePresetId;
   enableTransparency: boolean;
+  workspaceNames: Record<string, string>;
+  lastSeen: Record<string, string>;
+  composerDrafts: Record<string, string>;
+  permanentWorktrees: Record<string, string>;
+  terminalHeight: number;
+  terminalTakeover: boolean;
 };
 
 export const DEFAULT_GUI_STATE: GuiState = {
@@ -357,4 +364,10 @@ export const DEFAULT_GUI_STATE: GuiState = {
   themeMode: "system",
   themePresetId: "default",
   enableTransparency: false,
+  workspaceNames: {},
+  lastSeen: {},
+  composerDrafts: {},
+  permanentWorktrees: {},
+  terminalHeight: 340,
+  terminalTakeover: false,
 };

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { GitChange, GitDiff, GitState } from "../shared/protocol.js";
@@ -144,4 +145,21 @@ export async function discardFile(cwd: string, filePath: string): Promise<void> 
     return;
   }
   await git(cwd, ["restore", "--worktree", "--", target]);
+}
+
+export async function addPermanentWorktree(repoCwd: string): Promise<string> {
+  const root = (await git(repoCwd, ["rev-parse", "--show-toplevel"])).trim();
+  if (!root) throw new Error("Not a git repository.");
+  const name = path.basename(root) || "project";
+  const id = `gui-${Date.now().toString(36)}`;
+  const dest = path.join(path.dirname(root), `${name}-worktrees`, id);
+  mkdirSync(path.dirname(dest), { recursive: true });
+  await git(root, ["worktree", "add", "-b", `grok/${id}`, dest]);
+  return dest;
+}
+
+export async function removePermanentWorktree(repoCwd: string, worktreePath: string): Promise<void> {
+  const root = (await git(repoCwd, ["rev-parse", "--show-toplevel"])).trim();
+  if (!root) throw new Error("Not a git repository.");
+  await git(root, ["worktree", "remove", "--force", worktreePath]);
 }

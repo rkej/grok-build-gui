@@ -21,6 +21,10 @@ export function slashName(value: string | undefined): string {
 /** ACP-advertised commands that only drive TUI overlays this shell does not implement. */
 const INERT_SLASH_COMMANDS = new Set(["context", "session-info", "status", "info"]);
 
+const HOST_OVERLAY_COMMANDS: SlashItem[] = [
+  { name: "tree", title: "tree", description: "Browse rewind points", section: "host" },
+];
+
 export function grokSlashItems(state: {
   commands: readonly SlashCommand[];
   skills?: readonly {
@@ -51,6 +55,12 @@ export function grokSlashItems(state: {
       description: command.description ?? "",
       section: skillNames.has(key) ? "runtime" : "host",
     });
+  }
+  for (const overlay of HOST_OVERLAY_COMMANDS) {
+    const key = overlay.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(overlay);
   }
   return items;
 }
