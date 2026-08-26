@@ -15,6 +15,11 @@ export default defineConfig({
     build: {
       lib: { entry: resolve(__dirname, "src/preload/index.ts") },
       sourcemap: true,
+      rollupOptions: {
+        // Sandboxed Electron preloads run as plain scripts, so they must use
+        // the CommonJS bridge provided by Electron rather than native ESM.
+        output: { format: "cjs" },
+      },
     },
   },
   renderer: {
