@@ -122,3 +122,11 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
     terminal.stop();
   });
 }
+
+function allowedTerminalCwd(store: AppStore, cwd?: string): string {
+  const fallback = store.cwd;
+  if (!cwd) return fallback;
+  const roots = [store.cwd, store.gui.rootCwd, ...store.gui.workspaces, ...store.worktrees.map((tree) => tree.path)].filter(Boolean);
+  if (roots.some((root) => cwd === root || isInside(root, cwd))) return cwd;
+  return fallback;
+}

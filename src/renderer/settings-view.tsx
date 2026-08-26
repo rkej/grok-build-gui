@@ -116,6 +116,20 @@ function GeneralSection({ state }: { readonly state: AppSnapshot }) {
         </div>
         <div className="settings-row">
           <div className="settings-row__label">
+            <div className="settings-row__title">Show thoughts</div>
+            <div className="settings-row__description">Include the agent’s thinking blocks in the transcript.</div>
+          </div>
+          <label className="settings-toggle settings-toggle--inline">
+            <input
+              type="checkbox"
+              checked={state.gui.showThoughts !== false}
+              onChange={(event) => void window.grokApp.setGui({ showThoughts: event.target.checked })}
+            />
+            <span>Enable</span>
+          </label>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
             <div className="settings-row__title">Notify when a run finishes</div>
             <div className="settings-row__description">Show an OS notification after an agent turn completes in the background.</div>
           </div>
@@ -238,8 +252,25 @@ function ModelsSection({ state }: { readonly state: AppSnapshot }) {
         <div className="settings-row">
           <div className="settings-row__label">
             <div className="settings-row__title">Thinking level</div>
+            <div className="settings-row__description">Default reasoning effort for this session.</div>
           </div>
-          <div className="settings-row__value">{state.effort}</div>
+          <div className="settings-pill-row">
+            {(state.models.find((model) => model.modelId === state.currentModelId)?.reasoningEfforts ?? [
+              { id: "low", value: "low", label: "low" },
+              { id: "medium", value: "medium", label: "medium" },
+              { id: "high", value: "high", label: "high" },
+              { id: "xhigh", value: "xhigh", label: "xhigh" },
+            ]).map((effort) => (
+              <button
+                key={effort.id}
+                className={`settings-pill ${state.effort === effort.value || state.effort === effort.id ? "settings-pill--active" : ""}`}
+                type="button"
+                onClick={() => void window.grokApp.setEffort(effort.value)}
+              >
+                {effort.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="settings-option-list">

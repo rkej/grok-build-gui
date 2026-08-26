@@ -193,8 +193,12 @@ if (!gotLock) {
     win.focus();
   });
 
+function applyNativeTheme(mode: string | undefined): void {
+  nativeTheme.themeSource = mode === "light" || mode === "dark" ? mode : "system";
+}
+
 app.whenReady().then(async () => {
-  nativeTheme.themeSource = "system";
+  applyNativeTheme(store.gui.themeMode);
   installMenu();
   registerIpc({
     store,
@@ -202,7 +206,10 @@ app.whenReady().then(async () => {
     getWindow: () => win,
     pickFolder,
   });
-  store.on("change", sendState);
+  store.on("change", () => {
+    applyNativeTheme(store.gui.themeMode);
+    sendState();
+  });
   store.on("transcript-change", sendTranscript);
   store.on("run-finished", (info: { sessionId: string | null; title: string; ok: boolean }) => {
     const focused = Boolean(win && !win.isDestroyed() && win.isFocused() && store.activeSessionId === info.sessionId);
