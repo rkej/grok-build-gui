@@ -16,7 +16,7 @@ test("session activity survives navigation and prefers newer live state", () => 
 
 test("session activity keeps working when live upserts omit or idle the status", () => {
   assert.equal(
-    resolveSessionActivity({ activity: "working" }, { sessionId: "abc", title: "Thread" }),
+    resolveSessionActivity({ activity: "working" }, {}),
     "working",
   );
   assert.equal(
