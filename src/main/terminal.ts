@@ -12,7 +12,7 @@ type PtyHandle = {
 
 const require = createRequire(import.meta.url);
 
-function loadPtySpawn(): ((
+type PtySpawn = (
   file: string,
   args: string[] | string,
   options: {
@@ -22,10 +22,12 @@ function loadPtySpawn(): ((
     cwd?: string;
     env?: Record<string, string>;
   },
-) => PtyHandle) | null {
+) => PtyHandle;
+
+function loadPtySpawn(): PtySpawn | null {
   try {
-    const pty = require("node-pty") as { spawn: typeof loadPtySpawn extends () => infer T ? T : never };
-    return typeof pty?.spawn === "function" ? pty.spawn.bind(pty) : null;
+    const pty = require("node-pty") as { spawn?: PtySpawn };
+    return typeof pty.spawn === "function" ? pty.spawn.bind(pty) : null;
   } catch {
     return null;
   }
