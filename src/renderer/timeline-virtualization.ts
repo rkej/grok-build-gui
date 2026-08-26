@@ -9,7 +9,7 @@ export function estimateTimelineItemHeight(item: DisplayTimelineItem): number {
         ? 56
         : 0;
     const textLength = Math.max(item.text.length, 1);
-    return 48 + attachmentHeight + Math.min(240, Math.ceil(textLength / 90) * 20);
+    return 68 + attachmentHeight + Math.min(240, Math.ceil(textLength / 90) * 20);
   }
   if (item.kind === "tool") return 28;
   if (item.kind === "tool-group" || item.kind === "tool-bucket") return 28;

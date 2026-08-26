@@ -1705,11 +1705,14 @@ export class AppStore extends EventEmitter {
         this.effort = update.reasoning_effort ?? this.effort;
       }
       if (update.sessionUpdate === "turn_completed" || update.sessionUpdate === "response_completed") {
-        if (this.activeSessionId) {
-          this.inFlightPrompts.delete(this.activeSessionId);
+        // A completion notification can arrive before the session/prompt RPC
+        // settles (for example while post-turn hooks are still running). Keep
+        // the thread visibly working until the request lifecycle actually
+        // finishes; sendPrompt's finally block owns that transition.
+        if (this.activeSessionId && !this.inFlightPrompts.has(this.activeSessionId)) {
           this.markSessionActivity(this.activeSessionId, "completed");
+          this.running = false;
         }
-        this.running = false;
         if (update.usage) {
           this.usage = parseContextUsage({
             used: update.usage.totalTokens ?? update.usage.total_tokens ?? update.usage.used,
@@ -1825,11 +1828,12 @@ export class AppStore extends EventEmitter {
       },
       onMode: (modeId) => this.applyCurrentModeUpdate(modeId),
       onTurnComplete: () => {
-        if (this.activeSessionId) {
-          this.inFlightPrompts.delete(this.activeSessionId);
+        // The stream can report turn completion before session/prompt returns.
+        // Do not clear the sidebar's working state while that RPC is in flight.
+        if (this.activeSessionId && !this.inFlightPrompts.has(this.activeSessionId)) {
           this.markSessionActivity(this.activeSessionId, "completed");
+          this.running = false;
         }
-        this.running = false;
       },
     });
     if (cadence === "soon") {

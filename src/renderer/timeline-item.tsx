@@ -255,6 +255,79 @@ export const TimelineItem = memo(function TimelineItem({
   );
 });
 
+function MessageMeta({
+  text,
+  at,
+  itemId,
+  onFork,
+  showCopy = false,
+  align = "start",
+}: {
+  readonly text?: string;
+  readonly at: number;
+  readonly itemId?: string;
+  readonly onFork?: (itemId: string) => void;
+  readonly showCopy?: boolean;
+  readonly align?: "start" | "end";
+}) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const timestamp = formatMessageTimestamp(at);
+  const canCopy = Boolean(showCopy && text?.trim());
+  const canFork = Boolean(onFork && itemId && text?.trim());
+  if (!canCopy && !canFork && !timestamp) return null;
+
+  const dateTime = Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : undefined;
+
+  return (
+    <div className={`timeline-item__meta ${align === "end" ? "timeline-item__meta--end" : ""}`}>
+      {canCopy || canFork ? (
+        <div className="timeline-item__actions">
+          {canCopy ? (
+            <button
+              type="button"
+              className="timeline-item__action"
+              title={copied ? "Copied" : "Copy to clipboard"}
+              aria-label={copied ? "Copied" : "Copy to clipboard"}
+              data-testid="copy-message"
+              onClick={() => {
+                if (!text) return;
+                void navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => {});
+              }}
+            >
+              <CopyIcon />
+              <span className="timeline-item__action-label">{copied ? "Copied" : "Copy"}</span>
+            </button>
+          ) : null}
+          {canFork && itemId ? (
+            <button
+              type="button"
+              className="timeline-item__action"
+              title="Fork conversation from this point"
+              aria-label="Fork conversation from this point"
+              data-testid="fork-from-message"
+              onClick={() => onFork?.(itemId)}
+            >
+              <ForkIcon />
+              <span className="timeline-item__action-label">Fork</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {timestamp ? (
+        <time className="timeline-item__time" dateTime={dateTime} data-testid="message-timestamp">
+          {timestamp}
+        </time>
+      ) : null}
+    </div>
+  );
+}
+
 function toolStatus(status: string): "running" | "success" | "error" {
   if (status === "failed" || status === "error") return "error";
   if (status === "completed" || status === "success") return "success";

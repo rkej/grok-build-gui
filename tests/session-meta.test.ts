@@ -14,6 +14,13 @@ test("session activity survives navigation and prefers newer live state", () => 
   assert.equal(resolveSessionActivity({ activity: "completed" }, undefined, true), "working");
 });
 
+test("an in-flight prompt stays working after an early completion notification", () => {
+  assert.equal(
+    resolveSessionActivity({ activity: "completed" }, { activity: "completed" }, true),
+    "working",
+  );
+});
+
 test("session activity keeps working when live upserts omit or idle the status", () => {
   assert.equal(
     resolveSessionActivity({ activity: "working" }, {}),
