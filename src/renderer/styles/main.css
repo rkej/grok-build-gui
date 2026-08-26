@@ -51,6 +51,10 @@
   grid-column: 1;
 }
 
+.main--with-terminal.main--terminal-takeover {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .main--with-side-panel.main--terminal-takeover {
   grid-template-rows: auto minmax(0, 1fr);
 }

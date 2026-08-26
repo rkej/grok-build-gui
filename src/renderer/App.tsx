@@ -12,7 +12,7 @@ import { SignInView } from "./sign-in-view";
 import { credentialsPending } from "../shared/auth";
 import { SecondarySurface } from "./secondary-surface";
 import { SETTINGS_NAV, SettingsView, type SettingsSection } from "./settings-view";
-import { cwdName, Sidebar } from "./sidebar";
+import { cwdName, Sidebar, workspaceDisplayName } from "./sidebar";
 import { groupSessionsByWorkspace, pinnedThreads } from "./workspace-groups";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { SkillsView } from "./skills-view";
@@ -1014,7 +1014,6 @@ export default function App() {
             void api.pickFolder().then((dir) => {
               if (!dir) return;
               setView("new-thread");
-              setDraft("");
               window.setTimeout(() => composerRef.current?.focus(), 0);
             });
           }}
@@ -1040,8 +1039,8 @@ export default function App() {
           onStartRename={(sessionId) => { setThreadMenu(null); setRenamingId(sessionId); }}
           onCommitRename={(sessionId, title) => { setRenamingId(null); void api.rename(sessionId, title); }}
           onCancelRename={() => setRenamingId(null)}
-          onMarkRead={(sessionId) => void api.markRead(sessionId)}
-          onCopySessionId={(sessionId) => void navigator.clipboard.writeText(sessionId)}
+          onMarkRead={(sessionId) => { setThreadMenu(null); void api.markRead(sessionId); }}
+          onCopySessionId={(sessionId) => { setThreadMenu(null); void api.copyText(sessionId); }}
           onReorderWorkspaces={(order) => void api.reorderWorkspaces(order)}
           onReorderPinned={(order) => void api.reorderPinned(order)}
         />
@@ -1050,7 +1049,7 @@ export default function App() {
       <section className={mainClass}>
         <Topbar
           view={view}
-          workspaceName={cwdName(rootCwd)}
+          workspaceName={workspaceDisplayName(rootCwd, state.gui.workspaceNames)}
           sessionTitle={sessionDisplayTitle(active)}
           environmentLabel={environmentLabel}
           environmentOpen={environmentMenuOpen}

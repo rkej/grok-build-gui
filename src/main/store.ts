@@ -499,14 +499,20 @@ export class AppStore extends EventEmitter {
   }
 
   async createPermanentWorktree(dir: string): Promise<string> {
-    const dest = await addPermanentWorktree(dir);
-    this.gui.permanentWorktrees = { ...(this.gui.permanentWorktrees ?? {}), [dir]: dest };
-    saveGuiState(this.gui);
-    if (!this.worktrees.some((tree) => tree.path === dest)) {
-      this.worktrees = [...this.worktrees, { path: dest, label: path.basename(dest) }];
+    try {
+      const dest = await addPermanentWorktree(dir);
+      this.gui.permanentWorktrees = { ...(this.gui.permanentWorktrees ?? {}), [dir]: dest };
+      saveGuiState(this.gui);
+      if (!this.worktrees.some((tree) => tree.path === dest)) {
+        this.worktrees = [...this.worktrees, { path: dest, label: path.basename(dest) }];
+      }
+      await this.setCwd(dest);
+      return dest;
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+      this.bump();
+      throw err;
     }
-    await this.setCwd(dest);
-    return dest;
   }
 
   async removeLinkedWorktree(dir: string): Promise<void> {

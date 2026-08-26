@@ -54,9 +54,16 @@ test("slash menu lists Grok-advertised commands that have desktop functionality"
     ],
   });
 
-  assert.deepEqual(items.map((item) => item.name), ["compact", "workflow"]);
+  assert.deepEqual(items.map((item) => item.name), ["compact", "workflow", "tree"]);
   assert.equal(items.some((item) => item.name === "context" || item.name === "session-info"), false);
   assert.equal(items.some((item) => item.name === "review" || item.name === "new" || item.name === "mcp"), false);
+});
+
+test("slash menu always offers the host tree overlay", () => {
+  const items = grokSlashItems({
+    commands: [{ name: "compact", description: "Compress conversation history" }],
+  });
+  assert.equal(items.some((item) => item.name === "tree" && item.section === "host"), true);
 });
 
 test("advertised skills keep a skill badge, extra local skills stay out of the menu", () => {
@@ -76,6 +83,7 @@ test("advertised skills keep a skill badge, extra local skills stay out of the m
     [
       { name: "compact", section: "host" },
       { name: "review", section: "runtime" },
+      { name: "tree", section: "host" },
     ],
   );
 });
