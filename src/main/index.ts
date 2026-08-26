@@ -9,6 +9,8 @@ import { TerminalHost } from "./terminal.js";
 import { ipc } from "../shared/ipc.js";
 import { isHttpUrl } from "../shared/url.js";
 
+applyPosixPathDefaults();
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const store = new AppStore();
 const terminal = new TerminalHost();
@@ -168,7 +170,6 @@ async function pickFolder(): Promise<string | null> {
   return dir;
 }
 
-applyPosixPathDefaults();
 app.setName("Grok Build");
 
 const gotLock = app.requestSingleInstanceLock();
