@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AppSnapshot, AppView, ComposerAttachment, SlashOption, ThemeMode, ThemePresetId, ToolCallState, TranscriptItem, TranscriptSnapshot } from "../shared/protocol";
-import { builtinSlash, ComposerPanel, type ComposerMenu } from "./composer-panel";
+import { ComposerPanel, type ComposerMenu } from "./composer-panel";
 import { ConversationTimeline } from "./conversation-timeline";
 import { DiffPanel } from "./diff-panel";
 import { ExtensionsView, type ExtensionsSection } from "./extensions-view";
@@ -27,7 +27,7 @@ import { useTimelineScroll } from "./use-timeline-scroll";
 import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
 import { shouldApplySnapshot } from "../shared/snapshot-order";
 import { composerEscapeAction, moveSelectionIndex, mentionCandidatePath } from "./composer-navigation";
-import { moveSlashSelection, slashCommandKey, slashMenuItems, slashTabCompletion } from "./slash-completion";
+import { grokSlashItems, moveSlashSelection, slashCommandKey, slashMenuItems, slashTabCompletion } from "./slash-completion";
 
 const EMPTY_TRANSCRIPT: readonly TranscriptItem[] = [];
 
@@ -225,7 +225,7 @@ export default function App() {
   const slashItems = useMemo(() => {
     if (!state || !slashOpen) return [];
     const token = draft.split(/\s/)[0]?.slice(1).toLowerCase() ?? "";
-    return builtinSlash(state).filter((c) => c.name.toLowerCase().includes(token) || c.title.toLowerCase().includes(token));
+    return grokSlashItems(state).filter((c) => c.name.toLowerCase().includes(token) || c.title.toLowerCase().includes(token));
   }, [state, draft, slashOpen]);
   const visibleSlashItems = useMemo(() => slashMenuItems(slashItems), [slashItems]);
 

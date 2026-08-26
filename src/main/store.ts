@@ -50,7 +50,7 @@ import { loadGuiState, saveGuiState } from "./gui-state.js";
 import { pickAllowOption, shouldAutoApprove } from "./permissions.js";
 import { parseExtensionDialog } from "./extension-ui.js";
 import { sessionDir } from "./paths.js";
-import { parseModels, resolveSessionActivity, sessionTitle } from "./session-meta.js";
+import { parseModels, parseSlashCommands, resolveSessionActivity, sessionTitle } from "./session-meta.js";
 import { childSessionStub, listSubagentChildren, parentIdFromDisk, parentIdFromSessionRow } from "./session-parent.js";
 import { isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
 import { MAX_LOADED_TOOL_PAYLOADS } from "../shared/loaded-tool-cache.js";

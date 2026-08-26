@@ -14,57 +14,17 @@ import {
   StopSquareIcon,
 } from "./icons";
 import { mentionCandidatePath } from "./composer-navigation";
-import { slashCommandKey } from "./slash-completion";
+import { slashCommandKey, type SlashItem } from "./slash-completion";
 
 export type ComposerMenu = "none" | "model" | "effort" | "perm";
 export type ComposerDeliveryMode = "steer" | "followUp";
-
-export type SlashItem = {
-  name: string;
-  title: string;
-  description: string;
-  section: "host" | "runtime";
-};
+export type { SlashItem };
 
 export function permissionLabel(mode: PermissionMode): string {
   if (mode === "always-approve") return "always";
   if (mode === "plan") return "plan";
   if (mode === "auto") return "auto";
   return "ask";
-}
-
-export function builtinSlash(state: AppSnapshot): SlashItem[] {
-  const host: SlashItem[] = [
-    { name: "new", title: "New thread", description: "Start a new session", section: "host" },
-    { name: "compact", title: "Compact", description: "Compress conversation history", section: "host" },
-    { name: "fork", title: "Fork", description: "Branch this session", section: "host" },
-    { name: "plan", title: "Plan", description: "Enter plan mode", section: "host" },
-    { name: "always-approve", title: "Always approve", description: "Skip permission prompts", section: "host" },
-    { name: "auto", title: "Auto", description: "Auto-approve safe tools", section: "host" },
-    { name: "model", title: "Model", description: "Switch model", section: "host" },
-    { name: "effort", title: "Thinking", description: "Set reasoning effort", section: "host" },
-    { name: "rewind", title: "Rewind", description: "Rewind to an earlier turn", section: "host" },
-    { name: "rename", title: "Rename", description: "Rename this session", section: "host" },
-    { name: "mcp", title: "Extensions", description: "Open MCP servers", section: "host" },
-    { name: "skills", title: "Skills", description: "Open skills", section: "host" },
-  ];
-  const runtime: SlashItem[] = [
-    ...state.commands.map((c) => ({
-      name: c.name,
-      title: c.name,
-      description: c.description,
-      section: "runtime" as const,
-    })),
-    ...state.skills
-      .filter((s) => s.enabled !== false && s.userInvocable !== false)
-      .map((s) => ({
-        name: (s.slashCommand || `/${s.name}`).replace(/^\//, ""),
-        title: s.name,
-        description: s.description ?? "Skill",
-        section: "runtime" as const,
-      })),
-  ];
-  return [...host, ...runtime];
 }
 
 export function ComposerPanel({

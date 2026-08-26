@@ -1,17 +1,59 @@
+import type { SlashCommand } from "../shared/protocol";
+
 export type SlashCompletionCandidate = {
   name: string;
   section: "host" | "runtime";
+};
+
+export type SlashItem = SlashCompletionCandidate & {
+  title: string;
+  description: string;
 };
 
 export function slashCommandKey(item: SlashCompletionCandidate): string {
   return `${item.section}:${item.name}`;
 }
 
+export function slashName(value: string | undefined): string {
+  return (value ?? "").replace(/^\//, "").trim();
+}
+
+export function grokSlashItems(state: {
+  commands: readonly SlashCommand[];
+  skills?: readonly {
+    name: string;
+    description?: string;
+    slashCommand?: string;
+    enabled?: boolean;
+    userInvocable?: boolean;
+  }[];
+}): SlashItem[] {
+  const skillNames = new Set<string>();
+  for (const skill of state.skills ?? []) {
+    if (skill.enabled === false || skill.userInvocable === false) continue;
+    const command = slashName(skill.slashCommand || skill.name).toLowerCase();
+    if (command) skillNames.add(command);
+  }
+  const seen = new Set<string>();
+  const items: SlashItem[] = [];
+  for (const command of state.commands) {
+    const name = slashName(command.name);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({
+      name,
+      title: name,
+      description: command.description ?? "",
+      section: skillNames.has(key) ? "runtime" : "host",
+    });
+  }
+  return items;
+}
+
 export function slashMenuItems<T extends SlashCompletionCandidate>(items: readonly T[]): T[] {
-  return [
-    ...items.filter((item) => item.section === "runtime").slice(0, 8),
-    ...items.filter((item) => item.section === "host"),
-  ];
+  return [...items];
 }
 
 export function moveSlashSelection<T extends SlashCompletionCandidate>(
