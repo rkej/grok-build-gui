@@ -1,65 +1,61 @@
 # Release process
 
-Releases are built on GitHub-hosted runners from a semantic-version tag. The
-workflow signs and notarizes macOS packages, builds Linux AppImages, creates
-GitHub artifact attestations and SHA-256 checksums, and stops at a **draft**
-GitHub release. Publishing is always a separate human action.
+Releases use a hybrid flow so Apple credentials never leave the maintainer's
+Mac:
 
-The first planned release is `v0.1.0`. Windows is not part of the first release
-because the project does not yet have a Windows package target or signing
-identity.
+1. A semantic-version tag starts GitHub Actions.
+2. CI validates the tagged commit and builds attested Linux x64 and unsigned
+   Windows x64 artifacts on native runners. CI does not create a release.
+3. The maintainer's Mac downloads those successful CI artifacts, builds and
+   notarizes both macOS architectures using the local Keychain, generates
+   SHA-256 checksums, and creates a **draft** GitHub release.
+4. Publishing the draft is always a separate human action.
 
-## One-time repository setup
+The first planned release is `v0.1.0`. Unsigned Windows installers display a
+Microsoft Defender SmartScreen warning; call that out in every release note.
+
+## One-time setup
 
 1. Rotate the Apple app-specific password that was committed in Finlyze. Never
-   copy credentials, certificates, or passwords into this repository.
-2. In GitHub, create a `release-signing` environment. Restrict deployment tags
-   to `v*`, add a required reviewer, and store the macOS credentials there.
-3. Create a `release-draft` environment, restrict it to `v*`, and add a required
-   reviewer. It needs no secrets; the workflow uses its short-lived
-   `GITHUB_TOKEN` with only `contents: write` for the draft job.
-4. Protect `main`: require pull requests and the CI check, and disallow force
+   copy credentials, certificates, or passwords into this repository or GitHub
+   Actions.
+2. Keep the `Developer ID Application` certificate in the local login Keychain.
+3. Store notarization credentials in a Keychain profile:
+
+   ```bash
+   xcrun notarytool store-credentials grok-build-notary
+   ```
+
+   Follow the prompts. The local release command also supports one complete
+   App Store Connect API-key or Apple-ID environment-variable set, but the
+   Keychain profile is preferred for a local-only workflow.
+4. Authenticate the GitHub CLI with release access:
+
+   ```bash
+   gh auth login
+   gh auth status
+   ```
+
+5. Protect `main`: require pull requests and the CI check, and disallow force
    pushes. Enable immutable releases before the first release is published.
 
-Pinning Actions to full commit SHAs, environment approvals, job-scoped token
-permissions, draft-first releases, and artifact attestations are intentional
-supply-chain controls for a public repository.
+The workflow pins Actions to full commit SHAs and grants only read plus artifact
+attestation permissions. It has no repository or Apple secrets and cannot
+create or publish a GitHub release.
 
-### macOS secrets
+## Prepare the release commit
 
-Use an App Store Connect API key for notarization when possible:
-
-| Environment secret | Value |
-| --- | --- |
-| `MAC_CSC_LINK` | Base64-encoded Developer ID Application `.p12` |
-| `MAC_CSC_KEY_PASSWORD` | Password used when exporting the `.p12` |
-| `APPLE_API_KEY` | Base64-encoded App Store Connect `.p8` key |
-| `APPLE_API_KEY_ID` | App Store Connect key ID |
-| `APPLE_API_ISSUER` | App Store Connect issuer ID |
-| `APPLE_TEAM_ID` | Apple Developer team ID |
-
-The workflow also supports `APPLE_ID` and a newly generated
-`APPLE_APP_SPECIFIC_PASSWORD` instead of the three API-key secrets. Do not set
-both notarization methods. The signing identity itself already exists in the
-local login keychain and can be exported as a password-protected `.p12` using
-Keychain Access. Encode exported files without printing them to the terminal:
-
-```bash
-base64 -i DeveloperIDApplication.p12 | pbcopy
-base64 -i AuthKey_KEYID.p8 | pbcopy
-```
-
-Paste clipboard contents directly into the matching GitHub environment secret,
-then securely remove the exported files.
-
-## Prepare a release
-
-1. Merge the intended release commit to `main` and pull it locally.
+1. Merge the intended changes to `main` and pull them locally.
 2. Update `package.json` and `package-lock.json` to the same version. For a later
-   release, `npm version 0.1.1 --no-git-tag-version` updates both files.
+   release, this updates both files without creating a tag:
+
+   ```bash
+   npm version 0.1.1 --no-git-tag-version
+   ```
+
 3. Add user-facing release notes through merged PR titles and labels. GitHub's
    generated notes use `.github/release.yml`.
-4. Run the complete local gate:
+4. Run the local gate:
 
    ```bash
    npm ci
@@ -70,44 +66,71 @@ then securely remove the exported files.
 
 5. Launch the unpacked app from `release/`, open a real workspace, start and
    resume a Grok session, exercise a tool approval, inspect a diff, and verify
-   the terminal. Packaging is not considered verified from unit tests alone.
-6. Confirm `git status --short` is empty and the commit is on `origin/main`.
+   the terminal.
+6. Merge the version change, return to `main`, pull it, and confirm that
+   `git status --short` is empty and `HEAD` exactly matches `origin/main`.
 
-## Build the draft
+## Build CI artifacts
 
-Only after the checklist passes, create and push an annotated tag:
+Create and push an annotated tag from the release commit:
 
 ```bash
 git tag -a v0.1.0 -m "Grok Build v0.1.0"
 git push origin v0.1.0
 ```
 
-The tag starts `.github/workflows/release.yml`. Approve the two protected
-environments when prompted. The workflow rejects a tag whose version differs
-from `package.json` or whose commit is not reachable from `origin/main`.
+The tag starts `.github/workflows/release.yml`. It rejects a version that
+differs from `package.json` or a commit that is not reachable from `main`, then
+produces:
 
-When the workflow finishes, download and test the assets from the draft release
-on supported machines. On macOS, also verify Apple's assessment:
+- `Grok Build-0.1.0-linux-x64.AppImage`
+- `Grok Build-0.1.0-win-x64.exe` — unsigned NSIS installer
+
+Wait for the complete Release workflow to succeed. The local release command
+will refuse to continue if it cannot find a successful run for the tagged SHA.
+
+## Assemble the draft locally
+
+From the clean, tagged `main` checkout, run:
 
 ```bash
-spctl --assess --type open --context context:primary-signature -vv "/path/to/Grok Build.dmg"
+APPLE_KEYCHAIN_PROFILE=grok-build-notary npm run release:local -- v0.1.0
 ```
 
-Verify provenance and checksums before publishing:
+The command verifies the worktree, `origin/main`, tag, GitHub authentication,
+and successful CI run. It downloads Linux and Windows artifacts, builds signed
+and notarized macOS DMGs and ZIPs for x64 and arm64, creates `SHA256SUMS`, and
+creates or updates a draft GitHub release. It never publishes the draft.
+
+Test all three platforms before publishing. On macOS, verify the signature,
+notarization, and stapled ticket:
 
 ```bash
-gh attestation verify "/path/to/Grok Build-0.1.0-mac-arm64.dmg" --repo rkej/grok-build-gui
-sha256sum --check SHA256SUMS
+codesign --verify --deep --strict --verbose=2 "/path/to/Grok Build.app"
+spctl --assess --verbose --type exec "/path/to/Grok Build.app"
+xcrun stapler validate "/path/to/Grok Build.app"
 ```
 
-On macOS use `shasum -a 256 -c SHA256SUMS` if `sha256sum` is unavailable.
+Verify the GitHub provenance of the CI-built artifacts:
+
+```bash
+gh attestation verify "/path/to/Grok Build-0.1.0-linux-x64.AppImage" --repo rkej/grok-build-gui
+gh attestation verify "/path/to/Grok Build-0.1.0-win-x64.exe" --repo rkej/grok-build-gui
+```
+
+Verify every uploaded file against the locally generated manifest:
+
+```bash
+shasum -a 256 -c SHA256SUMS
+```
 
 ## Publish or abort
 
-Review the generated notes, call out the Grok CLI prerequisite, and list the
-supported operating systems. Publishing the GitHub draft is the only step that
-makes the binary release public.
+Review the draft notes, list the supported architectures, call out the Grok CLI
+prerequisite, and clearly disclose that Windows is unsigned. Click **Publish
+release** only after the downloaded draft assets pass smoke tests.
 
-If validation fails, do not move or reuse the tag. Delete the failed remote tag
-and draft, fix the issue on `main`, increment the patch version, and create a new
-tag. Published immutable releases and their tags must never be replaced.
+If CI or local assembly fails, do not move or reuse the tag. Delete the failed
+remote tag and draft, fix the issue on `main`, increment the patch version, and
+create a new tag. Published immutable releases and their tags must never be
+replaced.

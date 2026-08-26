@@ -26,6 +26,8 @@
     "package:mac": "npm run build && npm run icon && electron-builder --mac --publish never -c.mac.identity=null -c.mac.hardenedRuntime=false",
     "package:mac:release": "npm run build && npm run icon && electron-builder --mac --publish never -c.forceCodeSigning=true -c.mac.notarize=true",
     "package:linux": "npm run build && npm run icon && electron-builder --linux --publish never",
+    "package:win": "npm run build && npm run icon && electron-builder --win --publish never",
+    "release:local": "node scripts/release-local.mjs",
     "release:check": "node scripts/check-release.mjs"
   },
   "dependencies": {

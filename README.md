@@ -75,14 +75,16 @@ Unsigned desktop builds (no Apple notarization):
 npm run package:dir    # unpacked app, fastest to try
 npm run package:mac    # .dmg + .zip (macOS)
 npm run package:linux  # AppImage
+npm run package:win    # unsigned NSIS installer (run on Windows)
 ```
 
 Gatekeeper will warn on unsigned macOS builds. That’s expected until a signing
 identity is configured.
 
-Maintainers: the signed public-release workflow and checklist are documented in
-[docs/releasing.md](docs/releasing.md). Pushing a matching version tag builds a
-draft release; it never publishes a release automatically.
+Maintainers: the public-release workflow and checklist are documented in
+[docs/releasing.md](docs/releasing.md). A version tag builds Linux and unsigned
+Windows artifacts in CI; a local macOS command signs, notarizes, and assembles a
+draft release. Nothing publishes a release automatically.
 
 ## Architecture
 

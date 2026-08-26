@@ -10,6 +10,7 @@ const rootFiles = [
   "SECURITY.md",
   "electron-builder.yml",
   "package-lock.json",
+  "scripts/release-local.mjs",
 ];
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));

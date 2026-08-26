@@ -17,6 +17,9 @@ extraResources:
 asar: true
 asarUnpack:
   - node_modules/node-pty/**/*
+# node-pty 1.1 ships N-API prebuilds for macOS and Windows; npm compiles the
+# Linux host binary during install. Rebuilding makes cross-arch packaging fail.
+npmRebuild: false
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 mac:
@@ -39,7 +42,18 @@ linux:
   description: A native desktop shell around grok agent stdio.
   target:
     - target: AppImage
-      arch: [x64, arm64]
+      arch: [x64]
+
+win:
+  executableName: grok-build-gui
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
 
 dmg:
   contents:

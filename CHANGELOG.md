@@ -13,7 +13,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - GitHub Actions CI for typecheck, unit tests, and production build
 - Unit tests for session scoping, plan merge, path confinement, and JSON-RPC classify
 - Contributor-facing `AGENTS.md` (root and path-scoped)
-- Unsigned local packaging (`npm run package:mac` / `package:linux`)
+- Unsigned local packaging (`npm run package:mac` / `package:linux` / `package:win`)
+- Hybrid public releases: attested Linux and unsigned Windows builds from CI,
+  with signed and notarized macOS builds assembled locally
 - Renderer sandbox, single-instance lock, and http(s)-only window opens
 - PATH defaults so packaged apps still find `~/.grok/bin/grok` and Homebrew
 - Sign-in gate that runs `grok login` when the Grok CLI session is missing or ACP auth fails

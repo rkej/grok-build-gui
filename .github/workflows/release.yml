@@ -30,75 +30,6 @@ jobs:
       - run: npm run release:check -- "$GITHUB_REF_NAME"
       - run: npm run ci
 
-  macos:
-    needs: validate
-    runs-on: macos-latest
-    timeout-minutes: 45
-    environment: release-signing
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Validate macOS release credentials
-        shell: bash
-        env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
-            echo "::error::release-signing is missing MAC_CSC_LINK or MAC_CSC_KEY_PASSWORD"
-            exit 1
-          fi
-
-          api_key_complete=false
-          apple_id_complete=false
-          [[ -n "$APPLE_API_KEY" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER" ]] && api_key_complete=true
-          [[ -n "$APPLE_ID" && -n "$APPLE_APP_SPECIFIC_PASSWORD" && -n "$APPLE_TEAM_ID" ]] && apple_id_complete=true
-
-          if [[ "$api_key_complete" == "$apple_id_complete" ]]; then
-            echo "::error::configure exactly one complete notarization method in release-signing"
-            exit 1
-          fi
-      - name: Build, sign, and notarize macOS packages
-        run: npm run package:mac:release
-        env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      - name: Attest macOS packages
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: |
-            release/*.dmg
-            release/*.zip
-      - name: Upload macOS packages
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-macos
-          path: |
-            release/*.dmg
-            release/*.zip
-          if-no-files-found: error
-          compression-level: 0
-
   linux:
     needs: validate
     runs-on: ubuntu-latest
@@ -127,42 +58,33 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-  draft:
-    needs: [macos, linux]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment: release-draft
+  windows:
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 30
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
     steps:
-      - name: Download packages
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          pattern: release-*
-          path: dist
-          merge-multiple: true
-      - name: Generate checksums
-        working-directory: dist
-        run: find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS
-      - name: Attest checksum manifest
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build unsigned Windows installer
+        run: npm run package:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Attest Windows installer
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: dist/SHA256SUMS
-      - name: Create or update draft release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
-            gh release upload "$TAG" dist/* --clobber
-          else
-            gh release create "$TAG" dist/* \
-              --draft \
-              --generate-notes \
-              --title "Grok Build $TAG" \
-              --verify-tag
-          fi
+          subject-path: release/*.exe
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-windows
+          path: release/*.exe
+          if-no-files-found: error
+          compression-level: 0
