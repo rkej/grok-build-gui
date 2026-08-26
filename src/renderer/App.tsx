@@ -109,6 +109,12 @@ export default function App() {
     void api.getState().then(applyStateSnapshot);
   }, [api, applyStateSnapshot]);
 
+  const persistDraft = useCallback((key: string, text: string) => {
+    if (!key) return;
+    draftsRef.current = { ...draftsRef.current, [key]: text };
+    void api.setComposerDraft(key, text);
+  }, [api]);
+
   useEffect(() => {
     const sessionId = state?.activeSessionId;
     if (!sessionId) return;
@@ -410,12 +416,6 @@ export default function App() {
       setTreeLoading(false);
     }
   }, [api, state?.activeSessionId]);
-
-  const persistDraft = useCallback((key: string, text: string) => {
-    if (!key) return;
-    draftsRef.current = { ...draftsRef.current, [key]: text };
-    void api.setComposerDraft(key, text);
-  }, [api]);
 
   const scheduleDraftPersist = useCallback((key: string, text: string) => {
     if (!key) return;
@@ -1005,6 +1005,9 @@ export default function App() {
           workspaceMenu={workspaceMenu}
           threadMenu={threadMenu}
           renamingId={renamingId}
+          renamingWorkspace={renamingWorkspace}
+          workspaceNames={state.gui.workspaceNames ?? {}}
+          permanentWorktrees={state.gui.permanentWorktrees ?? {}}
           onNewThread={openNewThread}
           onSetView={setView}
           onPickFolder={() => {
@@ -1018,9 +1021,13 @@ export default function App() {
           onSelectWorkspace={(cwd) => void api.setCwd(cwd)}
           onToggleWorkspace={(cwd) => setCollapsedWorkspaces((m) => ({ ...m, [cwd]: !m[cwd] }))}
           onToggleWorkspaceMenu={(cwd) => setWorkspaceMenu(workspaceMenu === cwd ? null : cwd)}
-          onUseFolder={(cwd) => { void api.setCwd(cwd); setWorkspaceMenu(null); }}
           onOpenFolder={(cwd) => { void api.openPath(cwd); setWorkspaceMenu(null); }}
+          onCreateWorktree={(cwd) => { void api.createWorktree(cwd); setWorkspaceMenu(null); }}
+          onRemoveWorktree={(cwd) => { void api.removeWorktree(cwd); setWorkspaceMenu(null); }}
           onRemoveWorkspace={(cwd) => { void api.removeWorkspace(cwd); setWorkspaceMenu(null); }}
+          onStartWorkspaceRename={(cwd) => { setWorkspaceMenu(null); setRenamingWorkspace(cwd); }}
+          onCommitWorkspaceRename={(cwd, name) => { setRenamingWorkspace(null); void api.renameWorkspace(cwd, name); }}
+          onCancelWorkspaceRename={() => setRenamingWorkspace(null)}
           onSelectSession={(session) => {
             setView("threads");
             setThreadMenu(null);
@@ -1033,6 +1040,8 @@ export default function App() {
           onStartRename={(sessionId) => { setThreadMenu(null); setRenamingId(sessionId); }}
           onCommitRename={(sessionId, title) => { setRenamingId(null); void api.rename(sessionId, title); }}
           onCancelRename={() => setRenamingId(null)}
+          onMarkRead={(sessionId) => void api.markRead(sessionId)}
+          onCopySessionId={(sessionId) => void navigator.clipboard.writeText(sessionId)}
           onReorderWorkspaces={(order) => void api.reorderWorkspaces(order)}
           onReorderPinned={(order) => void api.reorderPinned(order)}
         />
