@@ -123,6 +123,11 @@ function installMenu(): void {
           accelerator: "CmdOrCtrl+N",
           click: () => win?.webContents.send(ipc.openNewThread),
         },
+        {
+          label: "Rename Current Thread",
+          accelerator: "CmdOrCtrl+Shift+R",
+          click: () => win?.webContents.send(ipc.renameCurrentThread),
+        },
         { label: "Open Folder", accelerator: "CmdOrCtrl+O", click: () => void pickFolder() },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
@@ -158,7 +163,6 @@ function installMenu(): void {
       label: "View",
       submenu: [
         { role: "reload" },
-        { role: "forceReload", accelerator: "CmdOrCtrl+Alt+R" },
         { role: "toggleDevTools" },
         { type: "separator" },
         { role: "resetZoom" },

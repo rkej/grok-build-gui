@@ -26,6 +26,7 @@ export const ipc = {
   findInThread: "gb:find-in-thread",
   openSettings: "gb:open-settings",
   openNewThread: "gb:open-new-thread",
+  renameCurrentThread: "gb:rename-current-thread",
   toggleWindowMaximize: "gb:toggle-window-maximize",
   extensionUiRespond: "gb:extension-ui-respond",
   compact: "gb:compact",

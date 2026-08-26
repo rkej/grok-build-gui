@@ -643,13 +643,17 @@ export default function App() {
       setDraft("");
       window.setTimeout(() => composerRef.current?.focus(), 0);
     });
+    const unsubRename = api.onRenameCurrentThread(() => {
+      if (state?.activeSessionId) setRenamingId(state.activeSessionId);
+    });
     return () => {
       window.removeEventListener("keydown", onKey);
       unsub();
       unsubSettings();
       unsubNewThread();
+      unsubRename();
     };
-  }, [api, threadSearch, view]);
+  }, [api, state?.activeSessionId, threadSearch, view]);
 
   useEffect(() => {
     if (threadSearch.isOpen) threadSearch.close();
