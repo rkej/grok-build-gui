@@ -22,6 +22,25 @@ test("agent terminals execute commands and expose output and exit status", async
   assert.deepEqual(output.exitStatus, exit);
 });
 
+test("agent terminals execute Grok shell-form commands when args are omitted", async () => {
+  const manager = new AgentTerminalManager();
+  const script = "process.stdout.write('shell-form-ok')";
+  const { terminalId } = manager.create(
+    {
+      sessionId: "session-shell-form",
+      command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`,
+    },
+    process.cwd(),
+  );
+
+  const exit = await manager.waitForExit(terminalId);
+  const output = manager.output(terminalId);
+  manager.release(terminalId);
+
+  assert.deepEqual(exit, { exitCode: 0, signal: null });
+  assert.equal(output.output, "shell-form-ok");
+});
+
 test("agent terminal output stays within the requested byte limit", async () => {
   const manager = new AgentTerminalManager();
   const { terminalId } = manager.create(

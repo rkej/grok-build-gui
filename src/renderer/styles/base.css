@@ -37,12 +37,14 @@
     "SF Pro Text",
     "Segoe UI",
     sans-serif;
+  --font-sans: var(--font-ui);
   --font-mono:
     ui-monospace,
     "SF Mono",
     "Cascadia Code",
     "Consolas",
     monospace;
+  --font-scale: 1;
   --border: var(--line);
   --ink: var(--text);
   --ink-strong: var(--text-strong);
@@ -63,6 +65,38 @@
   --shadow-md: 0 8px 24px rgba(20, 27, 45, 0.1);
   --shadow-lg: 0 16px 48px rgba(20, 27, 45, 0.14);
   --shadow-xl: 0 32px 80px rgba(20, 27, 45, 0.2);
+}
+
+/* Keep scroll affordances quiet: the thumb remains discoverable without a
+ * boxed track competing with the app's hairline surfaces. */
+* {
+  scrollbar-color: color-mix(in srgb, var(--muted-soft) 48%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+  border: 0;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--muted-soft) 44%, transparent);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-strong) 62%, transparent);
+  background-clip: padding-box;
 }
 
 :root.dark {
@@ -141,6 +175,10 @@ body,
   height: 100%;
   margin: 0;
   background: transparent;
+}
+
+html {
+  zoom: var(--font-scale, 1);
 }
 
 body {
@@ -294,13 +332,17 @@ svg {
   width: 64px;
   min-width: 64px;
   padding: 0;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .button--cta-icon svg {
+  display: block;
   width: 18px;
   height: 18px;
+  flex: none;
 }
 
 .meta-chip {

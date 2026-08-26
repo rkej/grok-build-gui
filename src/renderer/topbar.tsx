@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { AppView, SessionSummary } from "../shared/protocol";
 import { DiffIcon, FileIcon, PromptRailIcon, TerminalIcon } from "./icons";
 
@@ -19,6 +19,7 @@ export function Topbar({
   onToggleFiles,
   promptRailVisible,
   onTogglePromptRail,
+  panelsAvailable = true,
 }: {
   readonly view: AppView;
   readonly workspaceName: string;
@@ -36,14 +37,20 @@ export function Topbar({
   readonly onToggleFiles: () => void;
   readonly promptRailVisible: boolean;
   readonly onTogglePromptRail: () => void;
+  readonly panelsAvailable?: boolean;
 }) {
   const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
   const mod = isMac ? "⌘" : "Ctrl+";
+  const onTitleDoubleClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement | null)?.closest(".topbar__actions")) return;
+    void window.grokApp.toggleWindowMaximize();
+  };
 
   return (
-    <header className="topbar" data-testid="topbar">
-      <div className="topbar__title">
-        <span className="topbar__workspace">{workspaceName || "Open a folder to begin"}</span>
+    <header className="topbar" data-testid="topbar" onDoubleClick={onTitleDoubleClick}>
+      <div className="topbar__leading">
+        <div className="topbar__title">
+          <span className="topbar__workspace">{workspaceName || "Open a folder to begin"}</span>
         {(view === "threads" || view === "new-thread") && (
           <>
             <span className="topbar__separator">/</span>
@@ -85,11 +92,13 @@ export function Topbar({
             <span className="topbar__session">New thread</span>
           </>
         ) : null}
+        </div>
       </div>
 
       <div className="topbar__actions">
         <TopbarActionButton
           active={terminalVisible}
+          disabled={!panelsAvailable}
           icon={<TerminalIcon />}
           label="Toggle terminal"
           shortcut={`${mod}J`}
@@ -97,6 +106,7 @@ export function Topbar({
         />
         <TopbarActionButton
           active={changesVisible}
+          disabled={!panelsAvailable}
           icon={<DiffIcon />}
           label="Toggle changes"
           shortcut={`${mod}D`}
@@ -104,6 +114,7 @@ export function Topbar({
         />
         <TopbarActionButton
           active={filesVisible}
+          disabled={!panelsAvailable}
           icon={<FileIcon />}
           label="Toggle files"
           onClick={onToggleFiles}

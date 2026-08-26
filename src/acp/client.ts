@@ -29,6 +29,7 @@ export class GrokAcpClient extends EventEmitter {
   grokBin = resolveGrokBin();
   connected = false;
   initializeResult: any = null;
+  lastAuthMethodId: string | null = null;
 
   async start(): Promise<void> {
     if (this.rpc) return;
@@ -61,14 +62,32 @@ export class GrokAcpClient extends EventEmitter {
     this.connected = true;
   }
 
+  preferredAuthMethodIds(): string[] {
+    const advertised = (Array.isArray(this.initializeResult?.authMethods) ? this.initializeResult.authMethods : [])
+      .map((method: { id?: unknown }) => (typeof method?.id === "string" ? method.id : ""))
+      .filter(Boolean) as string[];
+    const allow = (id: string) => advertised.length === 0 || advertised.includes(id);
+    const ids: string[] = [];
+    if (allow("cached_token")) ids.push("cached_token");
+    if (process.env.XAI_API_KEY && allow("xai.api_key")) ids.push("xai.api_key");
+    if (!ids.length) ids.push("cached_token");
+    return ids;
+  }
+
   async authenticateCached(): Promise<any> {
     if (!this.rpc) throw new Error("ACP not started");
-    try {
-      return await this.rpc.request("authenticate", { methodId: "cached_token" }, 15_000);
-    } catch (err) {
-      this.emit("auth-needed", err);
-      throw err;
+    let lastErr: unknown;
+    for (const methodId of this.preferredAuthMethodIds()) {
+      try {
+        const result = await this.rpc.request("authenticate", { methodId }, 15_000);
+        this.lastAuthMethodId = methodId;
+        return result;
+      } catch (err) {
+        lastErr = err;
+      }
     }
+    this.emit("auth-needed", lastErr);
+    throw lastErr instanceof Error ? lastErr : new Error("Authentication required");
   }
 
   request<T = any>(method: string, params?: unknown, timeoutMs?: number): Promise<T> {

@@ -81,6 +81,25 @@ test("running tools keep live payloads until they complete", () => {
   assert.equal(done.tool.hasContent, true);
 });
 
+test("available command updates keep only well-formed Grok commands", () => {
+  const fold = createFold();
+  const received: string[][] = [];
+  applySessionUpdate(fold, {
+    sessionUpdate: "available_commands_update",
+    availableCommands: [
+      { name: "/compact", description: "Compress history" },
+      { name: "context", description: "Show context usage" },
+      { name: "", description: "ignored" },
+    ],
+  }, {
+    nextId: (prefix) => `${prefix}-1`,
+    onCommands: (commands) => received.push(commands.map((command) => command.name)),
+  });
+
+  assert.deepEqual(received, [["compact", "context"]]);
+  assert.equal(fold.items.length, 0);
+});
+
 test("compactToolForTransport keeps only label fields", () => {
   const compacted = compactToolForTransport({
     toolCallId: "edit-1",

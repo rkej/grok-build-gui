@@ -13,8 +13,10 @@ export function NewThreadView({
   slashOptions,
   slashOptionTitle,
   selectedSlashOption,
+  selectedSlashCommand,
   mentionOpen,
   mentionHits,
+  selectedMentionIndex,
   openMenu,
   setOpenMenu,
   efforts,
@@ -47,8 +49,10 @@ export function NewThreadView({
   slashOptions?: SlashOption[];
   slashOptionTitle?: string;
   selectedSlashOption?: string;
+  selectedSlashCommand?: string;
   mentionOpen: boolean;
   mentionHits: any[];
+  selectedMentionIndex?: number;
   openMenu: ComposerMenu;
   setOpenMenu: (v: ComposerMenu) => void;
   efforts: { id: string; value: string; label: string }[];
@@ -119,8 +123,10 @@ export function NewThreadView({
             slashOptions={slashOptions}
             slashOptionTitle={slashOptionTitle}
             selectedSlashOption={selectedSlashOption}
+            selectedSlashCommand={selectedSlashCommand}
             mentionOpen={mentionOpen}
             mentionHits={mentionHits}
+            selectedMentionIndex={selectedMentionIndex}
             openMenu={openMenu}
             setOpenMenu={setOpenMenu}
             efforts={efforts}

@@ -1,4 +1,4 @@
-import { ipcMain, shell, type BrowserWindow } from "electron";
+import { clipboard, ipcMain, shell, type BrowserWindow } from "electron";
 import { ipc } from "../shared/ipc.js";
 import { isHttpUrl } from "../shared/url.js";
 import { isInside } from "../shared/workspace-path.js";
@@ -63,8 +63,17 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.approve, (_e, optionId: string) => store.approvePermission(optionId));
   ipcMain.handle(ipc.pin, (_e, sessionId: string, pinned: boolean) => store.pin(sessionId, pinned));
   ipcMain.handle(ipc.archive, (_e, sessionId: string, archived: boolean) => store.archive(sessionId, archived));
+  ipcMain.handle(ipc.markRead, (_e, sessionId: string) => store.markRead(sessionId));
+  ipcMain.handle(ipc.renameWorkspace, (_e, cwd: string, name: string) => store.renameWorkspace(cwd, name));
+  ipcMain.handle(ipc.createWorktree, (_e, cwd: string) => store.createPermanentWorktree(cwd));
+  ipcMain.handle(ipc.removeWorktree, (_e, cwd: string) => store.removeLinkedWorktree(cwd));
+  ipcMain.handle(ipc.copyText, (_e, text: string) => {
+    clipboard.writeText(String(text ?? ""));
+  });
+  ipcMain.handle(ipc.setComposerDraft, (_e, key: string, text: string) => store.setComposerDraft(key, text));
   ipcMain.handle(ipc.setGui, (_e, partial) => store.setGui(partial));
   ipcMain.handle(ipc.login, () => store.login());
+  ipcMain.handle(ipc.cancelLogin, () => store.cancelLogin());
   ipcMain.handle(ipc.refresh, async () => {
     await store.refreshSessions();
     if (store.activeSessionId) await store.refreshSessionExtras(store.activeSessionId);
@@ -81,12 +90,26 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.installPlugin, (_e, source: string, trust: boolean) => store.installPlugin(source, trust));
   ipcMain.handle(ipc.setPluginEnabled, (_e, name: string, enabled: boolean) => store.setPluginEnabled(name, enabled));
   ipcMain.handle(ipc.uninstallPlugin, (_e, name: string) => store.uninstallPlugin(name));
+  ipcMain.handle(ipc.toggleWindowMaximize, () => {
+    const win = getWindow();
+    if (!win || win.isDestroyed()) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
   ipcMain.handle(ipc.openExternal, (_e, url: string) => {
     if (!isHttpUrl(url)) throw new Error("Only http(s) URLs can be opened.");
     return shell.openExternal(url);
   });
   ipcMain.handle(ipc.openPath, (_e, p: string) => {
-    if (!isInside(store.cwd, p) && !isInside(grokHome(), p)) {
+    const roots = [
+      store.cwd,
+      store.gui.rootCwd,
+      ...store.gui.workspaces,
+      ...store.worktrees.map((tree) => tree.path),
+      ...Object.values(store.gui.permanentWorktrees ?? {}),
+      grokHome(),
+    ].filter(Boolean);
+    if (!roots.some((root) => p === root || isInside(root, p))) {
       throw new Error("Path is outside the workspace.");
     }
     return shell.openPath(p);
@@ -98,20 +121,38 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.listFiles, () => store.listFiles());
   ipcMain.handle(ipc.readFile, (_e, relPath: string) => store.readFile(relPath));
   ipcMain.handle(ipc.selectEnvironment, (_e, id: string) => store.selectEnvironment(id));
-  ipcMain.handle(ipc.terminalStart, (_e, cwd?: string) => {
+  ipcMain.handle(ipc.terminalStart, (_e, cwd?: string, size?: { cols: number; rows: number }) => {
     const win = getWindow();
-    const target = cwd || store.cwd;
+    const target = allowedTerminalCwd(store, cwd);
     terminal.start(
       target,
       (data) => win?.webContents.send(ipc.terminalData, data),
       (code) => win?.webContents.send(ipc.terminalExit, code),
+      size,
     );
-    return { cwd: terminal.cwd };
+    return { cwd: terminal.cwd, pty: terminal.usingPty };
   });
   ipcMain.handle(ipc.terminalWrite, (_e, data: string) => {
     terminal.write(data);
   });
+  ipcMain.handle(ipc.terminalResize, (_e, cols: number, rows: number) => {
+    terminal.resize(cols, rows);
+  });
   ipcMain.handle(ipc.terminalStop, () => {
     terminal.stop();
   });
+}
+
+function allowedTerminalCwd(store: AppStore, cwd?: string): string {
+  const fallback = store.cwd;
+  if (!cwd) return fallback;
+  const roots = [
+    store.cwd,
+    store.gui.rootCwd,
+    ...store.gui.workspaces,
+    ...store.worktrees.map((tree) => tree.path),
+    ...Object.values(store.gui.permanentWorktrees ?? {}),
+  ].filter(Boolean);
+  if (roots.some((root) => cwd === root || isInside(root, cwd))) return cwd;
+  return fallback;
 }

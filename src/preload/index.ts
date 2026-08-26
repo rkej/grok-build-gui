@@ -48,10 +48,21 @@ export type GrokDesktopApi = {
   approve: (optionId: string) => Promise<void>;
   respondExtensionUi: (response: ExtensionUiResponse) => Promise<void>;
   onFindInThread: (listener: () => void) => () => void;
+  onOpenSettings: (listener: () => void) => () => void;
+  onOpenNewThread: (listener: () => void) => () => void;
+  onRenameCurrentThread: (listener: () => void) => () => void;
+  toggleWindowMaximize: () => Promise<void>;
   pin: (sessionId: string, pinned: boolean) => Promise<void>;
   archive: (sessionId: string, archived: boolean) => Promise<void>;
+  markRead: (sessionId: string) => Promise<void>;
+  renameWorkspace: (cwd: string, name: string) => Promise<void>;
+  createWorktree: (cwd: string) => Promise<string>;
+  removeWorktree: (cwd: string) => Promise<void>;
+  copyText: (text: string) => Promise<void>;
+  setComposerDraft: (key: string, text: string) => Promise<void>;
   setGui: (partial: Partial<GuiState>) => Promise<void>;
   login: () => Promise<void>;
+  cancelLogin: () => Promise<void>;
   refresh: () => Promise<AppSnapshot>;
   openExternal: (url: string) => Promise<void>;
   openPath: (p: string) => Promise<void>;
@@ -71,8 +82,9 @@ export type GrokDesktopApi = {
   installPlugin: (source: string, trust: boolean) => Promise<void>;
   setPluginEnabled: (name: string, enabled: boolean) => Promise<void>;
   uninstallPlugin: (name: string) => Promise<void>;
-  terminalStart: (cwd?: string) => Promise<{ cwd: string }>;
+  terminalStart: (cwd?: string, size?: { cols: number; rows: number }) => Promise<{ cwd: string; pty: boolean }>;
   terminalWrite: (data: string) => Promise<void>;
+  terminalResize: (cols: number, rows: number) => Promise<void>;
   terminalStop: () => Promise<void>;
   onTerminalData: (listener: (data: string) => void) => () => void;
   onTerminalExit: (listener: (code: number | null) => void) => () => void;
@@ -122,10 +134,33 @@ const api: GrokDesktopApi = {
     ipcRenderer.on(ipc.findInThread, handler);
     return () => ipcRenderer.removeListener(ipc.findInThread, handler);
   },
+  onOpenSettings: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(ipc.openSettings, handler);
+    return () => ipcRenderer.removeListener(ipc.openSettings, handler);
+  },
+  onOpenNewThread: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(ipc.openNewThread, handler);
+    return () => ipcRenderer.removeListener(ipc.openNewThread, handler);
+  },
+  onRenameCurrentThread: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(ipc.renameCurrentThread, handler);
+    return () => ipcRenderer.removeListener(ipc.renameCurrentThread, handler);
+  },
+  toggleWindowMaximize: () => ipcRenderer.invoke(ipc.toggleWindowMaximize),
   pin: (sessionId, pinned) => ipcRenderer.invoke(ipc.pin, sessionId, pinned),
   archive: (sessionId, archived) => ipcRenderer.invoke(ipc.archive, sessionId, archived),
+  markRead: (sessionId) => ipcRenderer.invoke(ipc.markRead, sessionId),
+  renameWorkspace: (cwd, name) => ipcRenderer.invoke(ipc.renameWorkspace, cwd, name),
+  createWorktree: (cwd) => ipcRenderer.invoke(ipc.createWorktree, cwd),
+  removeWorktree: (cwd) => ipcRenderer.invoke(ipc.removeWorktree, cwd),
+  copyText: (text) => ipcRenderer.invoke(ipc.copyText, text),
+  setComposerDraft: (key, text) => ipcRenderer.invoke(ipc.setComposerDraft, key, text),
   setGui: (partial) => ipcRenderer.invoke(ipc.setGui, partial),
   login: () => ipcRenderer.invoke(ipc.login),
+  cancelLogin: () => ipcRenderer.invoke(ipc.cancelLogin),
   refresh: () => ipcRenderer.invoke(ipc.refresh),
   openExternal: (url) => ipcRenderer.invoke(ipc.openExternal, url),
   openPath: (p) => ipcRenderer.invoke(ipc.openPath, p),
@@ -145,8 +180,9 @@ const api: GrokDesktopApi = {
   installPlugin: (source, trust) => ipcRenderer.invoke(ipc.installPlugin, source, trust),
   setPluginEnabled: (name, enabled) => ipcRenderer.invoke(ipc.setPluginEnabled, name, enabled),
   uninstallPlugin: (name) => ipcRenderer.invoke(ipc.uninstallPlugin, name),
-  terminalStart: (cwd) => ipcRenderer.invoke(ipc.terminalStart, cwd),
+  terminalStart: (cwd, size) => ipcRenderer.invoke(ipc.terminalStart, cwd, size),
   terminalWrite: (data) => ipcRenderer.invoke(ipc.terminalWrite, data),
+  terminalResize: (cols, rows) => ipcRenderer.invoke(ipc.terminalResize, cols, rows),
   terminalStop: () => ipcRenderer.invoke(ipc.terminalStop),
   onTerminalData: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, data: string) => listener(data);

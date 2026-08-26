@@ -21,6 +21,16 @@
   min-width: 0;
 }
 
+.topbar__leading {
+  display: flex;
+  align-items: center;
+}
+
+.topbar__leading {
+  gap: 10px;
+  min-width: 0;
+}
+
 .environment-picker,
 .environment-picker * {
   -webkit-app-region: no-drag;
@@ -83,8 +93,10 @@
 
 .shortcut-tooltip-wrap {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }
 
 .topbar__icon {
@@ -112,6 +124,8 @@
   color: var(--muted-strong);
   font-size: 12px;
   font-weight: 520;
+  letter-spacing: 0;
+  text-transform: none;
   opacity: 0;
   pointer-events: none;
   transition:
@@ -139,17 +153,28 @@
   transform: translateX(-50%);
 }
 
-.sidebar-toggle {
+.sidebar .shortcut-tooltip {
+  z-index: 80;
+}
+
+.titlebar-navigation {
   -webkit-app-region: no-drag;
   position: absolute;
   top: 11px;
   left: var(--titlebar-toggle-left);
   z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: var(--titlebar-navigation-gap);
 }
 
-.sidebar-toggle__button {
+.titlebar-navigation__button {
   width: var(--titlebar-toggle-size);
   height: var(--titlebar-toggle-size);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-lg);
   color: var(--muted-soft);
   background: var(--surface-overlay-muted);

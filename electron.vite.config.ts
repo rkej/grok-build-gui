@@ -13,13 +13,12 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      lib: { entry: resolve(__dirname, "src/preload/index.ts") },
-      sourcemap: true,
-      rollupOptions: {
-        // Sandboxed Electron preloads run as plain scripts, so they must use
-        // the CommonJS bridge provided by Electron rather than native ESM.
-        output: { format: "cjs" },
+      lib: {
+        entry: resolve(__dirname, "src/preload/index.ts"),
+        formats: ["cjs"],
+        fileName: () => "index.cjs",
       },
+      sourcemap: true,
     },
   },
   renderer: {

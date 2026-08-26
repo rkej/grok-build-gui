@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, ReactNode, RefObject } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, ReactNode, RefObject } from "react";
 import type { AppSnapshot, ComposerAttachment, ContextUsage, PermissionMode, SlashOption } from "../shared/protocol";
 import { buildExtensionDockModel, ExtensionDialog, ExtensionDock, PermissionDialog } from "./extension-session-ui";
 import {
@@ -7,62 +7,23 @@ import {
   ModelIcon,
   PlusIcon,
   ReasoningIcon,
-  SettingsIcon,
   SkillIcon,
   SparkIcon,
   StatusIcon,
   StopSquareIcon,
 } from "./icons";
+import { mentionCandidatePath } from "./composer-navigation";
+import { slashCommandKey, type SlashItem } from "./slash-completion";
 
 export type ComposerMenu = "none" | "model" | "effort" | "perm";
 export type ComposerDeliveryMode = "steer" | "followUp";
-
-export type SlashItem = {
-  name: string;
-  title: string;
-  description: string;
-  section: "host" | "runtime";
-};
+export type { SlashItem };
 
 export function permissionLabel(mode: PermissionMode): string {
   if (mode === "always-approve") return "always";
   if (mode === "plan") return "plan";
   if (mode === "auto") return "auto";
   return "ask";
-}
-
-export function builtinSlash(state: AppSnapshot): SlashItem[] {
-  const host: SlashItem[] = [
-    { name: "new", title: "New thread", description: "Start a new session", section: "host" },
-    { name: "compact", title: "Compact", description: "Compress conversation history", section: "host" },
-    { name: "fork", title: "Fork", description: "Branch this session", section: "host" },
-    { name: "plan", title: "Plan", description: "Enter plan mode", section: "host" },
-    { name: "always-approve", title: "Always approve", description: "Skip permission prompts", section: "host" },
-    { name: "auto", title: "Auto", description: "Auto-approve safe tools", section: "host" },
-    { name: "model", title: "Model", description: "Switch model", section: "host" },
-    { name: "effort", title: "Thinking", description: "Set reasoning effort", section: "host" },
-    { name: "rewind", title: "Rewind", description: "Rewind to an earlier turn", section: "host" },
-    { name: "rename", title: "Rename", description: "Rename this session", section: "host" },
-    { name: "mcp", title: "Extensions", description: "Open MCP servers", section: "host" },
-    { name: "skills", title: "Skills", description: "Open skills", section: "host" },
-  ];
-  const runtime: SlashItem[] = [
-    ...state.commands.map((c) => ({
-      name: c.name,
-      title: c.name,
-      description: c.description,
-      section: "runtime" as const,
-    })),
-    ...state.skills
-      .filter((s) => s.enabled !== false && s.userInvocable !== false)
-      .map((s) => ({
-        name: (s.slashCommand || `/${s.name}`).replace(/^\//, ""),
-        title: s.name,
-        description: s.description ?? "Skill",
-        section: "runtime" as const,
-      })),
-  ];
-  return [...host, ...runtime];
 }
 
 export function ComposerPanel({
@@ -75,8 +36,10 @@ export function ComposerPanel({
   slashOptions,
   slashOptionTitle,
   selectedSlashOption,
+  selectedSlashCommand,
   mentionOpen,
   mentionHits,
+  selectedMentionIndex,
   openMenu,
   setOpenMenu,
   efforts,
@@ -108,8 +71,10 @@ export function ComposerPanel({
   slashOptions?: SlashOption[];
   slashOptionTitle?: string;
   selectedSlashOption?: string;
+  selectedSlashCommand?: string;
   mentionOpen: boolean;
   mentionHits: any[];
+  selectedMentionIndex?: number;
   openMenu: ComposerMenu;
   setOpenMenu: (v: ComposerMenu) => void;
   efforts: { id: string; value: string; label: string }[];
@@ -136,12 +101,17 @@ export function ComposerPanel({
   const stop = state.running && !hasInput;
   const modelName = state.models.find((m) => m.modelId === state.currentModelId)?.name ?? state.currentModelId ?? "Choose model";
   const effortLabel = efforts.find((e) => e.value === state.effort)?.label ?? state.effort;
-  const hostItems = slashItems.filter((item) => item.section === "host");
-  const runtimeItems = slashItems.filter((item) => item.section === "runtime");
   const [dockOpen, setDockOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const menusRef = useRef<HTMLDivElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const dock = buildExtensionDockModel(state);
+
+  useEffect(() => {
+    menusRef.current?.querySelector<HTMLElement>(
+      ".slash-menu__item--active, .slash-menu__option--active, .mention-menu__item--active",
+    )?.scrollIntoView({ block: "nearest" });
+  }, [selectedSlashCommand, selectedSlashOption, selectedMentionIndex]);
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     onPickAttachments(Array.from(event.target.files ?? []));
@@ -233,7 +203,7 @@ export function ComposerPanel({
       >
         {dragActive ? <div className="composer__drop-indicator">Drop images or files to attach</div> : null}
         {(slashOpen || mentionOpen || (slashOptions && slashOptions.length > 0)) ? (
-          <div className="composer__menus">
+          <div className="composer__menus" ref={menusRef}>
             {slashOptions && slashOptions.length > 0 ? (
               <div className="slash-menu slash-menu--options" data-testid="slash-options-menu">
                 <div className="slash-menu__search">{slashOptionTitle ?? "Choose"}</div>
@@ -252,49 +222,39 @@ export function ComposerPanel({
             ) : null}
             {slashOpen ? (
               <div className="slash-menu" data-testid="slash-menu">
-                {runtimeItems.length > 0 ? (
-                  <div className="slash-menu__section">
-                    <div className="slash-menu__section-title slash-menu__section-title--runtime">
-                      <span className="slash-menu__section-icon"><SparkIcon /></span>
-                      <span>Skills & commands</span>
-                    </div>
-                    {runtimeItems.slice(0, 8).map((command) => (
-                      <button
-                        key={`runtime:${command.name}`}
-                        className="slash-menu__item slash-menu__item--skill"
-                        type="button"
-                        onClick={() => onPickSlash(command.name)}
-                      >
-                        <span className="slash-menu__icon"><SkillIcon /></span>
-                        <span className="slash-menu__content slash-menu__content--skill">
-                          <span className="slash-menu__line">
-                            <span className="slash-menu__title">{command.title}</span>
-                            <span className="slash-menu__skill-badge">skill</span>
-                          </span>
-                          <span className="slash-menu__description">{command.description}</span>
-                          <span className="slash-menu__command slash-menu__command--skill">/{command.name}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
                 <div className="slash-menu__section">
                   <div className="slash-menu__section-title slash-menu__section-title--host">
-                    <span className="slash-menu__section-icon"><SettingsIcon /></span>
-                    <span>App commands</span>
+                    <span className="slash-menu__section-icon"><SparkIcon /></span>
+                    <span>Commands</span>
                   </div>
-                  {hostItems.map((command) => (
-                    <button key={command.name} className="slash-menu__item" type="button" onClick={() => onPickSlash(command.name)}>
-                      <span className="slash-menu__icon">{slashIcon(command.name)}</span>
-                      <span className="slash-menu__content">
-                        <span className="slash-menu__line">
-                          <span className="slash-menu__title">{command.title}</span>
-                          <span className="slash-menu__command">/{command.name}</span>
-                        </span>
-                        <span className="slash-menu__description">{command.description}</span>
-                      </span>
-                    </button>
-                  ))}
+                  {slashItems.length === 0 ? (
+                    <div className="slash-menu__empty">
+                      <div className="slash-menu__empty-title">No matching commands</div>
+                      <div className="slash-menu__empty-description">Grok has not advertised a command with this name.</div>
+                    </div>
+                  ) : (
+                    slashItems.map((command) => {
+                      const skill = command.section === "runtime";
+                      return (
+                        <button
+                          key={slashCommandKey(command)}
+                          className={`slash-menu__item ${skill ? "slash-menu__item--skill" : ""} ${selectedSlashCommand === slashCommandKey(command) ? "slash-menu__item--active" : ""}`}
+                          type="button"
+                          onClick={() => onPickSlash(command.name)}
+                        >
+                          <span className="slash-menu__icon">{skill ? <SkillIcon /> : slashIcon(command.name)}</span>
+                          <span className={`slash-menu__content ${skill ? "slash-menu__content--skill" : ""}`}>
+                            <span className="slash-menu__line">
+                              <span className="slash-menu__title">{command.title}</span>
+                              {skill ? <span className="slash-menu__skill-badge">skill</span> : <span className="slash-menu__command">/{command.name}</span>}
+                            </span>
+                            <span className="slash-menu__description">{command.description}</span>
+                            {skill ? <span className="slash-menu__command slash-menu__command--skill">/{command.name}</span> : null}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             ) : null}
@@ -309,9 +269,9 @@ export function ComposerPanel({
                     </div>
                   ) : (
                     mentionHits.slice(0, 12).map((node, index) => {
-                      const path = node.path ?? node.name ?? String(node);
+                      const path = mentionCandidatePath(node);
                       return (
-                        <button key={`${path}-${index}`} className="mention-menu__item" type="button" onClick={() => onPickMention(path)}>
+                        <button key={`${path}-${index}`} className={`mention-menu__item ${selectedMentionIndex === index ? "mention-menu__item--active" : ""}`} type="button" onClick={() => onPickMention(path)}>
                           <span className="mention-menu__icon"><FileIcon /></span>
                           <span className="mention-menu__content">
                             <span className="mention-menu__file">
@@ -331,7 +291,7 @@ export function ComposerPanel({
 
         <textarea
           ref={composerRef}
-          className="new-thread__textarea composer__textarea"
+          className="composer__textarea"
           aria-label="Composer"
           data-testid="composer"
           rows={1}

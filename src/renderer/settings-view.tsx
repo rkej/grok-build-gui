@@ -1,4 +1,9 @@
-import type { AppSnapshot, ThemeMode, ThemePresetId } from "../shared/protocol";
+import type { AppSnapshot, FontScale, MonoFontId, ThemeMode, ThemePresetId, UiFontId } from "../shared/protocol";
+import {
+  FONT_SCALE_OPTIONS,
+  MONO_FONT_OPTIONS,
+  UI_FONT_OPTIONS,
+} from "../shared/fonts";
 import { permissionLabel } from "./composer-panel";
 import { themePresets } from "./theme-presets";
 
@@ -17,12 +22,18 @@ export function SettingsView({
   onSetThemeMode,
   onSetThemePreset,
   onSetTransparency,
+  onSetUiFont,
+  onSetMonoFont,
+  onSetFontScale,
 }: {
   readonly state: AppSnapshot;
   readonly section: SettingsSection;
   readonly onSetThemeMode: (mode: ThemeMode) => void;
   readonly onSetThemePreset: (id: ThemePresetId) => void;
   readonly onSetTransparency: (enabled: boolean) => void;
+  readonly onSetUiFont: (id: UiFontId) => void;
+  readonly onSetMonoFont: (id: MonoFontId) => void;
+  readonly onSetFontScale: (scale: FontScale) => void;
 }) {
   return (
     <section className="canvas">
@@ -40,9 +51,15 @@ export function SettingsView({
               themeMode={state.gui.themeMode ?? "system"}
               themePresetId={state.gui.themePresetId ?? "default"}
               enableTransparency={Boolean(state.gui.enableTransparency)}
+              uiFontId={state.gui.uiFontId ?? "system"}
+              monoFontId={state.gui.monoFontId ?? "system"}
+              fontScale={state.gui.fontScale ?? 100}
               onSetThemeMode={onSetThemeMode}
               onSetThemePreset={onSetThemePreset}
               onSetTransparency={onSetTransparency}
+              onSetUiFont={onSetUiFont}
+              onSetMonoFont={onSetMonoFont}
+              onSetFontScale={onSetFontScale}
             />
           ) : null}
           {section === "models" ? <ModelsSection state={state} /> : null}
@@ -61,7 +78,7 @@ function sectionTitle(section: SettingsSection): string {
 }
 
 function sectionDescription(section: SettingsSection): string {
-  if (section === "appearance") return "Theme mode, color presets, and window chrome.";
+  if (section === "appearance") return "Theme mode, color presets, fonts, and window chrome.";
   if (section === "models") return "Choose the default Grok model and reasoning effort for new threads.";
   if (section === "providers") return "Connect the Grok CLI the same way pi-gui connects model providers.";
   return "Grok CLI, auth, and workspace used by this desktop shell.";
@@ -116,6 +133,20 @@ function GeneralSection({ state }: { readonly state: AppSnapshot }) {
         </div>
         <div className="settings-row">
           <div className="settings-row__label">
+            <div className="settings-row__title">Show thoughts</div>
+            <div className="settings-row__description">Include the agent’s thinking blocks in the transcript.</div>
+          </div>
+          <label className="settings-toggle settings-toggle--inline">
+            <input
+              type="checkbox"
+              checked={state.gui.showThoughts !== false}
+              onChange={(event) => void window.grokApp.setGui({ showThoughts: event.target.checked })}
+            />
+            <span>Enable</span>
+          </label>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
             <div className="settings-row__title">Notify when a run finishes</div>
             <div className="settings-row__description">Show an OS notification after an agent turn completes in the background.</div>
           </div>
@@ -151,16 +182,28 @@ function AppearanceSection({
   themeMode,
   themePresetId,
   enableTransparency,
+  uiFontId,
+  monoFontId,
+  fontScale,
   onSetThemeMode,
   onSetThemePreset,
   onSetTransparency,
+  onSetUiFont,
+  onSetMonoFont,
+  onSetFontScale,
 }: {
   readonly themeMode: ThemeMode;
   readonly themePresetId: ThemePresetId;
   readonly enableTransparency: boolean;
+  readonly uiFontId: UiFontId;
+  readonly monoFontId: MonoFontId;
+  readonly fontScale: FontScale;
   readonly onSetThemeMode: (mode: ThemeMode) => void;
   readonly onSetThemePreset: (id: ThemePresetId) => void;
   readonly onSetTransparency: (enabled: boolean) => void;
+  readonly onSetUiFont: (id: UiFontId) => void;
+  readonly onSetMonoFont: (id: MonoFontId) => void;
+  readonly onSetFontScale: (scale: FontScale) => void;
 }) {
   return (
     <div className="settings-section">
@@ -192,6 +235,64 @@ function AppearanceSection({
             <input type="checkbox" checked={enableTransparency} onChange={(e) => onSetTransparency(e.target.checked)} />
             <span>Enable</span>
           </label>
+        </div>
+      </div>
+      <div className="settings-group">
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Interface font</div>
+            <div className="settings-row__description">Named fonts apply only if they are installed on this machine.</div>
+          </div>
+          <div className="settings-pill-row">
+            {UI_FONT_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={`settings-pill ${uiFontId === option.id ? "settings-pill--active" : ""}`}
+                type="button"
+                title={option.description}
+                onClick={() => onSetUiFont(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Code font</div>
+            <div className="settings-row__description">Used for the terminal, diffs, and inline code.</div>
+          </div>
+          <div className="settings-pill-row">
+            {MONO_FONT_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={`settings-pill ${monoFontId === option.id ? "settings-pill--active" : ""}`}
+                type="button"
+                title={option.description}
+                onClick={() => onSetMonoFont(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Size</div>
+            <div className="settings-row__description">Scales the whole shell, including the sidebar and composer.</div>
+          </div>
+          <div className="settings-pill-row">
+            {FONT_SCALE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={`settings-pill ${fontScale === option.id ? "settings-pill--active" : ""}`}
+                type="button"
+                onClick={() => onSetFontScale(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="settings-group">
@@ -238,8 +339,25 @@ function ModelsSection({ state }: { readonly state: AppSnapshot }) {
         <div className="settings-row">
           <div className="settings-row__label">
             <div className="settings-row__title">Thinking level</div>
+            <div className="settings-row__description">Default reasoning effort for this session.</div>
           </div>
-          <div className="settings-row__value">{state.effort}</div>
+          <div className="settings-pill-row">
+            {(state.models.find((model) => model.modelId === state.currentModelId)?.reasoningEfforts ?? [
+              { id: "low", value: "low", label: "low" },
+              { id: "medium", value: "medium", label: "medium" },
+              { id: "high", value: "high", label: "high" },
+              { id: "xhigh", value: "xhigh", label: "xhigh" },
+            ]).map((effort) => (
+              <button
+                key={effort.id}
+                className={`settings-pill ${state.effort === effort.value || state.effort === effort.id ? "settings-pill--active" : ""}`}
+                type="button"
+                onClick={() => void window.grokApp.setEffort(effort.value)}
+              >
+                {effort.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="settings-option-list">
@@ -267,14 +385,26 @@ function ProvidersSection({ state }: { readonly state: AppSnapshot }) {
           <div className="settings-row__label">
             <div className="settings-row__title">Grok</div>
             <div className="settings-row__description">
-              {state.auth.authenticated
-                ? state.auth.email ?? "Signed in"
-                : "Sign in with the Grok CLI so this shell can run sessions."}
+              {state.auth.signingIn
+                ? "Waiting for Grok CLI login to finish in your browser."
+                : state.auth.authenticated
+                  ? state.auth.email ?? "Signed in"
+                  : "Sign in with the Grok CLI so this shell can run sessions."}
+              {state.auth.error ? ` ${state.auth.error}` : ""}
             </div>
           </div>
           <div className="settings-row__actions">
-            <button className="button button--primary" type="button" onClick={() => void window.grokApp.login()}>
-              {state.auth.authenticated ? "Re-authenticate" : "Login"}
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={Boolean(state.auth.signingIn)}
+              onClick={() => void window.grokApp.login()}
+            >
+              {state.auth.signingIn
+                ? "Signing in…"
+                : state.auth.authenticated
+                  ? "Re-authenticate"
+                  : "Sign in"}
             </button>
           </div>
         </div>

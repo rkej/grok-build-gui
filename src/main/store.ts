@@ -1,13 +1,16 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { GrokAcpClient } from "../acp/client.js";
 import { AcpMethod } from "../acp/methods.js";
 import type { JsonRpcMessage } from "../acp/rpc.js";
 import { asArray, unwrap } from "../shared/acp-util.js";
+import { authFromAuthenticateResult, checkingAuth, isAuthError, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
+import { rankFileMentions } from "../shared/file-mentions.js";
 import type {
   AppSnapshot,
   AccountUsage,
@@ -38,8 +41,10 @@ import type {
   TranscriptItem,
   TranscriptSnapshot,
 } from "../shared/protocol.js";
+import { putComposerDraft } from "../shared/composer-drafts.js";
 import { mergePlanEntries, parsePlanEntries } from "../shared/plan.js";
-import { discardFile, diffFile, inspectGit, stageFile, unstageFile } from "./git.js";
+import { sessionHasUnseenUpdate } from "../shared/session-unseen.js";
+import { addPermanentWorktree, discardFile, diffFile, inspectGit, removePermanentWorktree, stageFile, unstageFile } from "./git.js";
 import { listTree, readWorkspaceFile } from "./files.js";
 import { fetchWeeklyUsage, loggedWeeklyUsage, parseWeeklyUsage } from "./billing.js";
 import { tryHandleFsRequest } from "./fs-bridge.js";
@@ -47,9 +52,10 @@ import { loadGuiState, saveGuiState } from "./gui-state.js";
 import { pickAllowOption, shouldAutoApprove } from "./permissions.js";
 import { parseExtensionDialog } from "./extension-ui.js";
 import { sessionDir } from "./paths.js";
-import { activityFromLive, parseModels, sessionTitle } from "./session-meta.js";
+import { parseModels, parseSlashCommands, resolveSessionActivity, sessionTitle } from "./session-meta.js";
 import { childSessionStub, listSubagentChildren, parentIdFromDisk, parentIdFromSessionRow } from "./session-parent.js";
-import { isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
+import { canSettleSessionFromNotification, isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
+import { sessionUpdateFileAppearsWorking } from "./session-running.js";
 import { MAX_LOADED_TOOL_PAYLOADS } from "../shared/loaded-tool-cache.js";
 import { applySessionUpdate, compactToolForTransport, createFold, isTerminalToolStatus, normalizeTool, replayJsonl, type TranscriptFold } from "./transcript.js";
 import { parseContextUsage } from "./usage.js";
@@ -65,9 +71,11 @@ import {
 } from "./extensions.js";
 import { createSkill, deleteSkill, discoverSkills, setSkillEnabled } from "./skills.js";
 import { AgentTerminalManager } from "./agent-terminals.js";
+import { grokError } from "./grok-cli.js";
 
 const execFileAsync = promisify(execFile);
 const USAGE_POLL_MS = 3 * 60 * 1000;
+const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
  * Main-process application store.
@@ -77,12 +85,17 @@ const USAGE_POLL_MS = 3 * 60 * 1000;
  * remains the source of truth.
  */
 export class AppStore extends EventEmitter {
+  readonly instanceId = randomUUID();
   readonly client = new GrokAcpClient();
   readonly agentTerminals = new AgentTerminalManager();
   gui = loadGuiState();
   connected = false;
   grokVersion: string | null = null;
-  auth: AuthState = { authenticated: false };
+  auth: AuthState = checkingAuth();
+  private loginChild: ChildProcess | null = null;
+  private loginPromise: Promise<void> | null = null;
+  private loginCancelled = false;
+  private reconnecting = false;
   cwd = process.cwd();
   models: ModelInfo[] = [];
   currentModelId = "";
@@ -140,6 +153,7 @@ export class AppStore extends EventEmitter {
 
   snapshot(): AppSnapshot {
     return {
+      instanceId: this.instanceId,
       connected: this.connected,
       grokBin: this.client.grokBin,
       grokVersion: this.grokVersion,
@@ -151,11 +165,26 @@ export class AppStore extends EventEmitter {
       permissionMode: this.displayPermissionMode(),
       currentModeId: this.currentModeId,
       commands: this.commands,
-      sessions: this.sessions.map((s) => ({
-        ...s,
-        pinned: this.gui.pinned.includes(s.sessionId),
-        archived: this.gui.archived.includes(s.sessionId) || Boolean(s.archived),
-      })),
+      sessions: this.sessions.map((s) => {
+        const activity = resolveSessionActivity(
+          s,
+          this.liveById.get(s.sessionId),
+          this.inFlightPrompts.has(s.sessionId) || s.activity === "working",
+        );
+        return {
+          ...s,
+          activity,
+          pinned: this.gui.pinned.includes(s.sessionId),
+          archived: this.gui.archived.includes(s.sessionId) || Boolean(s.archived),
+          unseen: sessionHasUnseenUpdate({
+            sessionId: s.sessionId,
+            activeSessionId: this.activeSessionId,
+            activity,
+            updatedAt: s.updatedAt,
+            lastSeen: this.gui.lastSeen?.[s.sessionId],
+          }),
+        };
+      }),
       activeSessionId: this.activeSessionId,
       // The transcript travels over its own IPC channel. Keeping it out of the
       // general snapshot avoids cloning the entire chat on every state change.
@@ -165,9 +194,9 @@ export class AppStore extends EventEmitter {
       usage: this.usage,
       accountUsage: this.accountUsage,
       queue: this.queue,
-      running: Boolean(this.activeSessionId && (this.running || this.inFlightPrompts.has(this.activeSessionId))),
+      running: Boolean(this.activeSessionId && (this.running || this.isSessionWorking(this.activeSessionId))),
       git: this.git,
-      worktrees: this.worktrees,
+      worktrees: this.mergedWorktrees(),
       mcp: this.mcp,
       plugins: this.plugins,
       skills: this.skills,
@@ -246,7 +275,29 @@ export class AppStore extends EventEmitter {
     return isForActiveSession(params, this.activeSessionId, this.inFlightPrompts);
   }
 
+  private mergedWorktrees(): AppSnapshot["worktrees"] {
+    const listed = this.worktrees.filter((tree) => tree.path);
+    const seen = new Set(listed.map((tree) => tree.path));
+    const extra = Object.entries(this.gui.permanentWorktrees ?? {})
+      .filter(([, worktreePath]) => worktreePath && !seen.has(worktreePath))
+      .map(([cwd, worktreePath]) => ({
+        path: worktreePath,
+        label: this.gui.workspaceNames?.[cwd] || path.basename(worktreePath),
+      }));
+    return extra.length ? [...listed, ...extra] : listed;
+  }
+
+  private markSessionSeen(sessionId: string | null): void {
+    const lastSeen = { ...(this.gui.lastSeen ?? {}) };
+    const now = new Date().toISOString();
+    if (this.activeSessionId && this.activeSessionId !== sessionId) lastSeen[this.activeSessionId] = now;
+    if (sessionId) lastSeen[sessionId] = now;
+    this.gui.lastSeen = lastSeen;
+    saveGuiState(this.gui);
+  }
+
   private adoptSession(sessionId: string, initialItems: TranscriptItem[] = []): number {
+    this.markSessionSeen(sessionId);
     const epoch = ++this.sessionEpoch;
     this.loadingSession = null;
     this.activeSessionId = sessionId;
@@ -257,12 +308,26 @@ export class AppStore extends EventEmitter {
     this.remoteQueue = [];
     this.syncQueue();
     this.error = null;
-    this.running = this.inFlightPrompts.has(sessionId);
+    this.running = this.isSessionWorking(sessionId);
     this.rebuildTranscriptIndexes();
     this.adoptPermissions(sessionId);
     this.emitTranscriptChange();
     this.bump();
     return epoch;
+  }
+
+  private isSessionWorking(sessionId: string): boolean {
+    const listed = this.sessions.find((session) => session.sessionId === sessionId);
+    const live = this.liveById.get(sessionId);
+    const persisted = listed
+      ? sessionUpdateFileAppearsWorking(path.join(sessionDir(sessionId, listed.cwd), "updates.jsonl"))
+      : false;
+    return resolveSessionActivity(listed, live, this.inFlightPrompts.has(sessionId) || persisted) === "working";
+  }
+
+  private markSessionActivity(sessionId: string, activity: SessionSummary["activity"]): void {
+    this.liveById.set(sessionId, { ...(this.liveById.get(sessionId) ?? {}), activity });
+    this.sessions = this.sessions.map((session) => session.sessionId === sessionId ? { ...session, activity } : session);
   }
 
   private adoptPermissions(sessionId: string): void {
@@ -321,40 +386,24 @@ export class AppStore extends EventEmitter {
     this.client.on("server-request", (msg) => this.onServerRequest(msg));
     this.client.on("exit", () => {
       this.connected = false;
+      if (this.reconnecting) return;
       this.error = "Grok agent process exited.";
       this.bump();
     });
+    this.client.on("auth-needed", (err) => {
+      this.maybeNoteAuthFailure(err);
+    });
     await this.client.start();
     this.connected = true;
-    const init = this.client.initializeResult;
-    const meta = init?._meta ?? {};
-    this.models = parseModels(meta.modelState?.availableModels);
-    this.currentModelId = meta.modelState?.currentModelId ?? this.models[0]?.modelId ?? "";
-    this.effort = this.models.find((m) => m.modelId === this.currentModelId)?.reasoningEffort ?? "high";
-    this.commands = asArray(meta.availableCommands);
-    try {
-      const auth = unwrap<any>(await this.client.authenticateCached());
-      const m = auth?._meta ?? auth ?? {};
-      this.auth = {
-        authenticated: true,
-        methodId: "cached_token",
-        email: m.email,
-        teamName: m.team_name,
-        subscriptionTier: m.subscription_tier,
-      };
-    } catch {
-      this.auth = { authenticated: false };
+    this.applyInitializeResult(this.client.initializeResult);
+    if (!(await this.applyCachedAuth())) {
+      void this.login();
+      await this.refreshGit();
+      await this.refreshCatalogs();
+      this.bump();
+      return;
     }
-    this.accountUsage = loggedWeeklyUsage() ?? this.accountUsage;
-    this.startUsagePolling();
-    await this.refreshSessions();
-    for (const session of this.sessions) {
-      if (session.cwd) this.rememberWorkspace(session.cwd, { front: false });
-    }
-    if (!this.gui.rootCwd && this.cwd) this.gui.rootCwd = this.cwd;
-    saveGuiState(this.gui);
-    await this.refreshGit();
-    await this.refreshCatalogs();
+    await this.hydrateAfterAuth();
     this.bump();
   }
 
@@ -374,6 +423,8 @@ export class AppStore extends EventEmitter {
           this.childParents.get(id) ??
           parentIdFromDisk(id, cwd);
         if (parentSessionId) this.childParents.set(id, parentSessionId);
+        const appearsWorking = this.inFlightPrompts.has(id)
+          || sessionUpdateFileAppearsWorking(path.join(sessionDir(id, cwd), "updates.jsonl"));
         return {
           sessionId: id,
           cwd,
@@ -384,7 +435,7 @@ export class AppStore extends EventEmitter {
           updatedAt: s.updatedAt ?? s.lastActiveAt ?? "",
           lastActiveAt: s.lastActiveAt,
           numMessages: s.numMessages ?? 0,
-          activity: activityFromLive(l),
+          activity: resolveSessionActivity(s, l, appearsWorking),
           yolo: l?.yolo,
           reasoningEffort: l?.reasoningEffort ?? s.reasoningEffort,
           isWorktree: l?.isWorktree ?? false,
@@ -408,9 +459,18 @@ export class AppStore extends EventEmitter {
         }
       }
       if (refreshSeq !== this.sessionsRefreshSeq) return;
-      this.sessions = sessions;
+      this.sessions = sessions.map((session) => ({
+        ...session,
+        activity: resolveSessionActivity(
+          session,
+          this.liveById.get(session.sessionId),
+          this.inFlightPrompts.has(session.sessionId)
+            || sessionUpdateFileAppearsWorking(path.join(sessionDir(session.sessionId, session.cwd), "updates.jsonl")),
+        ),
+      }));
     } catch (err) {
       if (refreshSeq !== this.sessionsRefreshSeq) return;
+      if (this.maybeNoteAuthFailure(err)) return;
       this.error = err instanceof Error ? err.message : String(err);
     }
   }
@@ -440,8 +500,58 @@ export class AppStore extends EventEmitter {
     this.gui.workspaces = (this.gui.workspaces ?? []).filter((item) => item !== dir);
     if (this.gui.rootCwd === dir) this.gui.rootCwd = this.gui.workspaces[0] ?? "";
     if (this.cwd === dir) this.cwd = this.gui.rootCwd || this.cwd;
+    const names = { ...(this.gui.workspaceNames ?? {}) };
+    delete names[dir];
+    this.gui.workspaceNames = names;
+    const trees = { ...(this.gui.permanentWorktrees ?? {}) };
+    delete trees[dir];
+    this.gui.permanentWorktrees = trees;
     saveGuiState(this.gui);
     this.bump();
+  }
+
+  renameWorkspace(dir: string, name: string): void {
+    const names = { ...(this.gui.workspaceNames ?? {}) };
+    const trimmed = name.trim();
+    if (trimmed) names[dir] = trimmed;
+    else delete names[dir];
+    this.gui.workspaceNames = names;
+    saveGuiState(this.gui);
+    this.bump();
+  }
+
+  async createPermanentWorktree(dir: string): Promise<string> {
+    try {
+      const dest = await addPermanentWorktree(dir);
+      this.gui.permanentWorktrees = { ...(this.gui.permanentWorktrees ?? {}), [dir]: dest };
+      saveGuiState(this.gui);
+      if (!this.worktrees.some((tree) => tree.path === dest)) {
+        this.worktrees = [...this.worktrees, { path: dest, label: path.basename(dest) }];
+      }
+      await this.setCwd(dest);
+      return dest;
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+      this.bump();
+      throw err;
+    }
+  }
+
+  async removeLinkedWorktree(dir: string): Promise<void> {
+    const dest = this.gui.permanentWorktrees?.[dir];
+    if (!dest) return;
+    try {
+      await removePermanentWorktree(dir, dest);
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+    }
+    const trees = { ...(this.gui.permanentWorktrees ?? {}) };
+    delete trees[dir];
+    this.gui.permanentWorktrees = trees;
+    this.worktrees = this.worktrees.filter((tree) => tree.path !== dest);
+    saveGuiState(this.gui);
+    if (this.cwd === dest) await this.setCwd(dir, { asRoot: true });
+    else this.bump();
   }
 
   private seedWorkspaces(): void {
@@ -475,7 +585,13 @@ export class AppStore extends EventEmitter {
     const mode = opts?.permissionMode ?? this.permissionMode;
     if (opts?.yolo) this.armYolo(true);
     const params: Record<string, unknown> = { cwd: this.cwd, mcpServers: [], _meta: this.permissionMeta(mode) };
-    const result = await this.client.request<any>(AcpMethod.SessionNew, params);
+    let result: any;
+    try {
+      result = await this.client.request<any>(AcpMethod.SessionNew, params);
+    } catch (err) {
+      this.maybeNoteAuthFailure(err);
+      throw err;
+    }
     const sessionId = result.sessionId as string;
     this.applySessionMeta(result);
     const epoch = this.adoptSession(sessionId);
@@ -520,6 +636,7 @@ export class AppStore extends EventEmitter {
       });
     } catch (error) {
       if (this.loadingSession?.epoch === epoch) this.loadingSession = null;
+      this.maybeNoteAuthFailure(error);
       throw error;
     }
     if (epoch !== this.sessionEpoch) return;
@@ -580,6 +697,7 @@ export class AppStore extends EventEmitter {
     attachments: readonly ComposerAttachment[] = [],
   ): Promise<void> {
     this.inFlightPrompts.add(sessionId);
+    this.markSessionActivity(sessionId, "working");
     this.plan = null;
     this.transcript.items.push({ id: this.nextId("u"), kind: "user", text, at: Date.now(), attachments: attachments.length ? [...attachments] : undefined });
     this.transcript.assistantIndex = null;
@@ -597,11 +715,12 @@ export class AppStore extends EventEmitter {
       await this.client.request(AcpMethod.SessionPrompt, { sessionId, prompt }, 30 * 60_000);
     } catch (err) {
       failed = true;
-      if (this.activeSessionId === sessionId) {
+      if (!this.maybeNoteAuthFailure(err) && this.activeSessionId === sessionId) {
         this.error = err instanceof Error ? err.message : String(err);
       }
     } finally {
       this.inFlightPrompts.delete(sessionId);
+      this.markSessionActivity(sessionId, failed ? "failed" : "completed");
       const cancelled = this.cancelledPrompts.delete(sessionId);
       const stillQueued = this.activeSessionId === sessionId && this.localQueue.length > 0;
       if (!cancelled && !stillQueued) this.emitRunFinished(sessionId, !failed);
@@ -712,6 +831,7 @@ export class AppStore extends EventEmitter {
     this.cancelledPrompts.add(this.activeSessionId);
     this.client.notify(AcpMethod.SessionCancel, { sessionId: this.activeSessionId });
     this.inFlightPrompts.delete(this.activeSessionId);
+    this.markSessionActivity(this.activeSessionId, "completed");
     this.localQueue = [];
     this.syncQueue();
     this.running = false;
@@ -839,6 +959,15 @@ export class AppStore extends EventEmitter {
       this.resetTranscript();
       this.emitTranscriptChange();
     }
+    this.gui.pinned = this.gui.pinned.filter((id) => id !== sessionId);
+    this.gui.archived = this.gui.archived.filter((id) => id !== sessionId);
+    const lastSeen = { ...(this.gui.lastSeen ?? {}) };
+    delete lastSeen[sessionId];
+    this.gui.lastSeen = lastSeen;
+    const drafts = { ...(this.gui.composerDrafts ?? {}) };
+    delete drafts[sessionId];
+    this.gui.composerDrafts = drafts;
+    saveGuiState(this.gui);
     await this.refreshSessions();
     this.bump();
   }
@@ -885,11 +1014,16 @@ export class AppStore extends EventEmitter {
 
   async compact(note?: string): Promise<void> {
     if (!this.activeSessionId) return;
+    const sessionId = this.activeSessionId;
     await this.client.request(AcpMethod.XaiCompact, {
-      sessionId: this.activeSessionId,
+      sessionId,
       context: note,
     });
-    await this.refreshSessionExtras(this.activeSessionId);
+    await this.refreshSessionExtras(sessionId);
+    if (this.activeSessionId !== sessionId) return;
+    this.transcript.items = this.readPersistedTranscript(sessionId, this.cwd);
+    this.rebuildTranscriptIndexes();
+    this.emitTranscriptChange();
     this.bump();
   }
 
@@ -958,10 +1092,7 @@ export class AppStore extends EventEmitter {
   }
 
   async fuzzySearch(query: string): Promise<unknown> {
-    if (!this.activeSessionId) return { files: [] };
-    return unwrap(
-      await this.client.request(AcpMethod.XaiFuzzyOpen, { sessionId: this.activeSessionId, query }),
-    );
+    return { files: rankFileMentions(this.listFiles(), query) };
   }
 
   async approvePermission(optionId: string): Promise<void> {
@@ -1192,6 +1323,18 @@ export class AppStore extends EventEmitter {
     this.bump();
   }
 
+  markRead(sessionId: string): void {
+    this.gui.lastSeen = { ...(this.gui.lastSeen ?? {}), [sessionId]: new Date().toISOString() };
+    saveGuiState(this.gui);
+    this.bump();
+  }
+
+  setComposerDraft(key: string, text: string): void {
+    if (!key) return;
+    this.gui.composerDrafts = putComposerDraft(this.gui.composerDrafts, key, text);
+    saveGuiState(this.gui);
+  }
+
   archive(sessionId: string, archived: boolean): void {
     const set = new Set(this.gui.archived ?? []);
     if (archived) set.add(sessionId);
@@ -1262,15 +1405,179 @@ export class AppStore extends EventEmitter {
   }
 
   async login(): Promise<void> {
-    await execFileAsync(this.client.grokBin, ["login"]);
+    if (this.loginPromise) return this.loginPromise;
+    this.loginPromise = this.runLogin().finally(() => {
+      this.loginPromise = null;
+    });
+    return this.loginPromise;
+  }
+
+  cancelLogin(): void {
+    this.loginCancelled = true;
+    this.loginChild?.kill();
+    this.loginChild = null;
+  }
+
+  private async runLogin(): Promise<void> {
+    const reauth = this.auth.authenticated;
+    this.loginCancelled = false;
+    this.auth = {
+      ...this.auth,
+      authenticated: reauth,
+      checking: false,
+      signingIn: true,
+      error: null,
+    };
+    this.bump();
     try {
-      const auth = unwrap<any>(await this.client.authenticateCached());
-      const m = auth?._meta ?? {};
-      this.auth = { authenticated: true, email: m.email, subscriptionTier: m.subscription_tier };
-    } catch {
-      this.auth = { authenticated: false };
+      await this.spawnGrokLogin();
+      if (!this.client.rpc) {
+        await this.reconnectAgent();
+      }
+      let ok = await this.applyCachedAuth();
+      if (!ok) {
+        await this.reconnectAgent();
+        ok = await this.applyCachedAuth();
+      }
+      if (!ok) {
+        throw new Error("Grok CLI login finished, but the agent could not use the new credentials.");
+      }
+      await this.hydrateAfterAuth();
+      this.auth = { ...this.auth, signingIn: false, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : grokError(err);
+      if (reauth && (await this.applyCachedAuth())) {
+        this.auth = { ...this.auth, signingIn: false, error: message };
+      } else {
+        this.auth = signedOutAuth({
+          error: message,
+          loginUrl: this.auth.loginUrl,
+          deviceCode: this.auth.deviceCode,
+        });
+      }
     }
     this.bump();
+  }
+
+  private spawnGrokLogin(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.loginCancelled) {
+        reject(new Error("Sign-in cancelled."));
+        return;
+      }
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      delete env.ELECTRON_RUN_AS_NODE;
+      const child = spawn(this.client.grokBin, ["login"], {
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      this.loginChild = child;
+      let output = "";
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        this.loginChild = null;
+        fn();
+      };
+      const onData = (buf: Buffer | string) => {
+        output += typeof buf === "string" ? buf : buf.toString("utf8");
+        const parsed = parseGrokLoginOutput(output);
+        let changed = false;
+        if (parsed.url && parsed.url !== this.auth.loginUrl) {
+          this.auth = { ...this.auth, loginUrl: parsed.url };
+          changed = true;
+        }
+        if (parsed.deviceCode && parsed.deviceCode !== this.auth.deviceCode) {
+          this.auth = { ...this.auth, deviceCode: parsed.deviceCode };
+          changed = true;
+        }
+        if (changed) this.bump();
+      };
+      child.stdout?.on("data", onData);
+      child.stderr?.on("data", onData);
+      timer = setTimeout(() => {
+        child.kill();
+        finish(() => reject(new Error("Grok CLI login timed out. Try again.")));
+      }, LOGIN_TIMEOUT_MS);
+      child.once("error", (err) => {
+        finish(() => reject(new Error(grokError(err))));
+      });
+      child.once("exit", (code) => {
+        finish(() => {
+          if (this.loginCancelled) {
+            reject(new Error("Sign-in cancelled."));
+            return;
+          }
+          if (code === 0) {
+            resolve();
+            return;
+          }
+          const detail = output.trim();
+          reject(new Error(detail || `grok login exited (${code ?? "unknown"})`));
+        });
+      });
+    });
+  }
+
+  private applyInitializeResult(init: unknown): void {
+    const meta = (init as { _meta?: Record<string, any> } | null)?._meta ?? {};
+    this.models = parseModels(meta.modelState?.availableModels);
+    this.currentModelId = meta.modelState?.currentModelId ?? this.models[0]?.modelId ?? "";
+    this.effort = this.models.find((m) => m.modelId === this.currentModelId)?.reasoningEffort ?? "high";
+    this.commands = parseSlashCommands(meta.availableCommands);
+  }
+
+  private async applyCachedAuth(): Promise<boolean> {
+    try {
+      const result = unwrap(await this.client.authenticateCached());
+      this.auth = authFromAuthenticateResult(result, this.client.lastAuthMethodId ?? "cached_token");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async reconnectAgent(): Promise<void> {
+    this.reconnecting = true;
+    try {
+      this.client.stop();
+      await this.client.start();
+      this.connected = true;
+      this.applyInitializeResult(this.client.initializeResult);
+    } finally {
+      this.reconnecting = false;
+    }
+  }
+
+  private async hydrateAfterAuth(): Promise<void> {
+    this.accountUsage = loggedWeeklyUsage() ?? this.accountUsage;
+    this.startUsagePolling();
+    await this.refreshSessions();
+    for (const session of this.sessions) {
+      if (session.cwd) this.rememberWorkspace(session.cwd, { front: false });
+    }
+    if (!this.gui.rootCwd && this.cwd) this.gui.rootCwd = this.cwd;
+    saveGuiState(this.gui);
+    await this.refreshGit();
+    await this.refreshCatalogs();
+  }
+
+  private maybeNoteAuthFailure(err: unknown): boolean {
+    if (!isAuthError(err)) return false;
+    if (this.auth.signingIn || this.auth.checking) return true;
+    const wasAuthenticated = this.auth.authenticated;
+    const message = err instanceof Error ? err.message : String(err);
+    this.auth = signedOutAuth({
+      error: wasAuthenticated ? message : this.auth.error,
+      loginUrl: this.auth.loginUrl,
+      deviceCode: this.auth.deviceCode,
+    });
+    this.bump();
+    return true;
   }
 
   private onServerRequest(msg: JsonRpcMessage): void {
@@ -1365,7 +1672,8 @@ export class AppStore extends EventEmitter {
     }
     if (method === AcpMethod.XaiSessionsChanged) {
       for (const row of asArray<any>(params.upserted)) {
-        this.liveById.set(row.sessionId, row);
+        if (!row?.sessionId) continue;
+        this.liveById.set(row.sessionId, { ...(this.liveById.get(row.sessionId) ?? {}), ...row });
       }
       void this.refreshSessions().then(() => this.bump());
       return;
@@ -1404,8 +1712,14 @@ export class AppStore extends EventEmitter {
         this.effort = update.reasoning_effort ?? this.effort;
       }
       if (update.sessionUpdate === "turn_completed" || update.sessionUpdate === "response_completed") {
-        if (this.activeSessionId) this.inFlightPrompts.delete(this.activeSessionId);
-        this.running = false;
+        // A completion notification can arrive before the session/prompt RPC
+        // settles (for example while post-turn hooks are still running). Keep
+        // the thread visibly working until the request lifecycle actually
+        // finishes; sendPrompt's finally block owns that transition.
+        if (canSettleSessionFromNotification(this.activeSessionId, this.inFlightPrompts)) {
+          this.markSessionActivity(this.activeSessionId, "completed");
+          this.running = false;
+        }
         if (update.usage) {
           this.usage = parseContextUsage({
             used: update.usage.totalTokens ?? update.usage.total_tokens ?? update.usage.used,
@@ -1521,8 +1835,12 @@ export class AppStore extends EventEmitter {
       },
       onMode: (modeId) => this.applyCurrentModeUpdate(modeId),
       onTurnComplete: () => {
-        if (this.activeSessionId) this.inFlightPrompts.delete(this.activeSessionId);
-        this.running = false;
+        // The stream can report turn completion before session/prompt returns.
+        // Do not clear the sidebar's working state while that RPC is in flight.
+        if (canSettleSessionFromNotification(this.activeSessionId, this.inFlightPrompts)) {
+          this.markSessionActivity(this.activeSessionId, "completed");
+          this.running = false;
+        }
       },
     });
     if (cadence === "soon") {

@@ -4,6 +4,7 @@ import { SparkIcon } from "./icons";
 import { ThreadSearchBar } from "./thread-search";
 import { TimelineItem } from "./timeline-item";
 import { buildDisplayTimelineItems, flattenDisplayItems, type DisplayTimelineItem } from "./timeline-turns";
+import { estimateTimelineItemHeight, initialTimelineViewport } from "./timeline-virtualization";
 
 const OVERSCAN_PX = 720;
 const ROW_GAP_PX = 14;
@@ -12,6 +13,7 @@ const VIRTUALIZATION_THRESHOLD = 80;
 export const ConversationTimeline = memo(function ConversationTimeline({
   items,
   running,
+  runningLabel,
   error,
   paneRef,
   expandedTools,
@@ -32,6 +34,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
 }: {
   readonly items: readonly TranscriptItem[];
   readonly running: boolean;
+  readonly runningLabel?: string;
   readonly error: string | null;
   readonly paneRef: RefObject<HTMLDivElement | null>;
   readonly expandedTools: Record<string, boolean>;
@@ -132,7 +135,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
     }
     const index = visibleItems.findIndex((item) => item.id === id);
     if (!pane || index < 0) return;
-    const estimatedTop = visibleItems.slice(0, index).reduce((total, item) => total + estimateHeight(item) + ROW_GAP_PX, 0);
+    const estimatedTop = visibleItems.slice(0, index).reduce((total, item) => total + estimateTimelineItemHeight(item) + ROW_GAP_PX, 0);
     pane.scrollTop = Math.max(0, estimatedTop - 16);
     window.requestAnimationFrame(() => {
       const mounted = pane.querySelector<HTMLElement>(`[data-message-id="${cssEscape(id)}"]`);
@@ -144,16 +147,16 @@ export const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   return (
-    <div className="conversation conversation--thread">
+    <div className="conversation-timeline">
       {error ? <div className="error-banner">{error}</div> : null}
-      <div className="timeline-surface">
-        <div
-          className="timeline-pane timeline-pane--thread"
-          ref={paneRef}
-          data-testid="timeline-pane"
-          onPointerDown={onTimelineScrollIntent}
-          onWheel={onTimelineScrollIntent}
-        >
+      <div
+        className="timeline-surface timeline-pane timeline-pane--thread"
+        ref={paneRef}
+        data-testid="timeline-pane"
+        onPointerDown={onTimelineScrollIntent}
+        onWheel={onTimelineScrollIntent}
+      >
+        <div className="timeline-pane__content">
           {threadSearch?.isOpen ? (
             <ThreadSearchBar
               query={threadSearch.query}
@@ -185,6 +188,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
               loadingTools={loadingTools}
               loadedToolContent={loadedToolContent}
               running={running}
+              runningLabel={runningLabel}
               onToggleItem={toggleItem}
               onViewFileInDiff={onViewFileInDiff}
               onFork={onFork}
@@ -209,7 +213,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
               })}
               {running ? (
                 <div className="timeline-activity">
-                  <span className="timeline-activity__label">Working…</span>
+                  <span className="timeline-activity__label">{runningLabel ?? "Working…"}</span>
                 </div>
               ) : null}
             </div>
@@ -250,6 +254,7 @@ function VirtualizedTranscript({
   loadingTools,
   loadedToolContent,
   running,
+  runningLabel,
   onToggleItem,
   onViewFileInDiff,
   onFork,
@@ -264,6 +269,7 @@ function VirtualizedTranscript({
   readonly loadingTools: Record<string, boolean>;
   readonly loadedToolContent?: Record<string, ToolCallState>;
   readonly running?: boolean;
+  readonly runningLabel?: string;
   readonly onToggleItem: (item: DisplayTimelineItem) => void;
   readonly onViewFileInDiff?: (path: string) => void;
   readonly onFork?: (itemId: string) => void;
@@ -271,7 +277,7 @@ function VirtualizedTranscript({
 }) {
   const heightsRef = useRef(new Map<string, number>());
   const [version, setVersion] = useState(0);
-  const [viewport, setViewport] = useState({ scrollTop: 0, height: 800 });
+  const [viewport, setViewport] = useState(() => initialTimelineViewport(displayItems, 800, ROW_GAP_PX));
 
   const onHeightChange = useCallback((id: string, height: number) => {
     const next = Math.max(1, Math.ceil(height));
@@ -330,7 +336,7 @@ function VirtualizedTranscript({
   }, [displayItems]);
 
   void version;
-  const rowHeights = displayItems.map((item) => heightsRef.current.get(item.id) ?? estimateHeight(item));
+  const rowHeights = displayItems.map((item) => heightsRef.current.get(item.id) ?? estimateTimelineItemHeight(item));
   const offsets: number[] = [];
   let total = 0;
   for (let i = 0; i < rowHeights.length; i += 1) {
@@ -373,7 +379,7 @@ function VirtualizedTranscript({
       </div>
       {running ? (
         <div className="timeline-activity">
-          <span className="timeline-activity__label">Working…</span>
+          <span className="timeline-activity__label">{runningLabel ?? "Working…"}</span>
         </div>
       ) : null}
     </>
@@ -458,23 +464,6 @@ function hydrateItem(
   const loaded = loadedToolContent[item.id] ?? loadedToolContent[item.tool.toolCallId];
   if (!loaded) return item;
   return { ...item, tool: { ...item.tool, ...loaded, contentLoaded: true } };
-}
-
-function estimateHeight(item: DisplayTimelineItem): number {
-  if (item.kind === "turn-marker") return 32;
-  if (item.kind === "user" || item.kind === "assistant") {
-    const attachmentHeight = item.kind === "user" && item.attachments?.some((attachment) => attachment.kind === "image")
-      ? 120
-      : item.kind === "user" && item.attachments?.length
-        ? 56
-        : 0;
-    const textLength = Math.max(item.text.length, 1);
-    return 48 + attachmentHeight + Math.min(240, Math.ceil(textLength / 90) * 20);
-  }
-  if (item.kind === "tool") return 28;
-  if (item.kind === "tool-group" || item.kind === "tool-bucket") return 28;
-  if (item.kind === "plan") return 140;
-  return 38;
 }
 
 function TranscriptEmptyState() {

@@ -1,6 +1,6 @@
 import { extractTodosFromTool, isPlanTool, mergePlanEntries, parsePlanEntries } from "../shared/plan.js";
 import type { PlanEntry, SlashCommand, ToolCallState, TranscriptItem } from "../shared/protocol.js";
-import { asArray } from "../shared/acp-util.js";
+import { parseSlashCommands } from "./session-meta.js";
 
 /**
  * Live `session/update` folding and JSONL replay share this reducer.
@@ -231,7 +231,7 @@ export function applySessionUpdate(
   }
 
   if (kind === "available_commands_update") {
-    hooks.onCommands?.(asArray(update.availableCommands));
+    hooks.onCommands?.(parseSlashCommands(update.availableCommands));
     return "now";
   }
 

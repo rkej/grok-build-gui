@@ -1,3 +1,7 @@
+import type { FontScale, MonoFontId, UiFontId } from "./fonts";
+
+export type { FontScale, MonoFontId, UiFontId };
+
 export type PermissionMode = "ask" | "auto" | "always-approve" | "plan";
 export type Effort = "low" | "medium" | "high" | "xhigh";
 export type AppView = "threads" | "new-thread" | "skills" | "mcp" | "settings";
@@ -43,6 +47,7 @@ export type SessionSummary = {
   isWorktree?: boolean;
   kind?: string;
   parentSessionId?: string;
+  unseen?: boolean;
 };
 
 export type ToolCallState = {
@@ -125,10 +130,15 @@ export type ExtensionUiResponse =
 
 export type AuthState = {
   authenticated: boolean;
+  checking?: boolean;
+  signingIn?: boolean;
   methodId?: string;
   email?: string;
   teamName?: string | null;
   subscriptionTier?: string;
+  error?: string | null;
+  loginUrl?: string | null;
+  deviceCode?: string | null;
 };
 
 export type ContextUsage = {
@@ -272,6 +282,7 @@ export type SlashOption = {
 };
 
 export type AppSnapshot = {
+  instanceId: string;
   connected: boolean;
   grokBin: string | null;
   grokVersion: string | null;
@@ -305,7 +316,7 @@ export type AppSnapshot = {
 };
 
 export type ThemeMode = "system" | "light" | "dark";
-export type ThemePresetId = "default" | "catppuccin" | "tokyo-night" | "nord";
+export type ThemePresetId = "default" | "catppuccin" | "tokyo-night" | "nord" | "ayu";
 
 export type GuiState = {
   sidebarWidth: number;
@@ -328,6 +339,15 @@ export type GuiState = {
   themeMode: ThemeMode;
   themePresetId: ThemePresetId;
   enableTransparency: boolean;
+  uiFontId: UiFontId;
+  monoFontId: MonoFontId;
+  fontScale: FontScale;
+  workspaceNames: Record<string, string>;
+  lastSeen: Record<string, string>;
+  composerDrafts: Record<string, string>;
+  permanentWorktrees: Record<string, string>;
+  terminalHeight: number;
+  terminalTakeover: boolean;
 };
 
 export const DEFAULT_GUI_STATE: GuiState = {
@@ -351,4 +371,13 @@ export const DEFAULT_GUI_STATE: GuiState = {
   themeMode: "system",
   themePresetId: "default",
   enableTransparency: false,
+  uiFontId: "system",
+  monoFontId: "system",
+  fontScale: 100,
+  workspaceNames: {},
+  lastSeen: {},
+  composerDrafts: {},
+  permanentWorktrees: {},
+  terminalHeight: 340,
+  terminalTakeover: false,
 };

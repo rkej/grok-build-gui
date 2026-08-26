@@ -111,9 +111,10 @@ select.new-thread__workspace {
   color: var(--text-strong);
 }
 
-.new-thread__textarea {
-  min-height: 100px;
-  resize: vertical;
+.composer__textarea {
+  min-height: 24px;
+  max-height: 220px;
+  resize: none;
   border: none;
   background: transparent;
   color: var(--text-strong);
@@ -122,8 +123,14 @@ select.new-thread__workspace {
   line-height: 1.55;
 }
 
-.new-thread__textarea:focus {
+.composer__textarea:focus,
+.composer__textarea:focus-visible {
   outline: none;
+  box-shadow: none;
+}
+
+.new-thread__composer .composer__textarea {
+  min-height: 100px;
 }
 
 .new-thread__hint {

@@ -81,6 +81,22 @@ export function ArrowUpIcon() {
   );
 }
 
+export function ArrowLeftIcon() {
+  return (
+    <Icon>
+      <path d="M15.2 10H4.8M9 5.8 4.8 10 9 14.2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+    </Icon>
+  );
+}
+
+export function ArrowRightIcon() {
+  return (
+    <Icon>
+      <path d="M4.8 10h10.4M11 5.8l4.2 4.2-4.2 4.2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+    </Icon>
+  );
+}
+
 export function GrokMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 64 64" fill="none">

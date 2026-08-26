@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { InlineDiff } from "./diff-inline";
 import { MessageMarkdown } from "./markdown";
 import { PlanCard } from "./plan-card";
@@ -15,6 +15,7 @@ import {
   toolName,
 } from "./tool-format";
 import { ChevronRightIcon, CopyIcon, DiffIcon, FileIcon, ForkIcon, SparkIcon, TerminalIcon } from "./icons";
+import { formatMessageTimestamp } from "./string-utils";
 import { extensionToLanguage } from "./syntax-highlight";
 
 export const TimelineItem = memo(function TimelineItem({
@@ -37,25 +38,28 @@ export const TimelineItem = memo(function TimelineItem({
   if (item.kind === "user") {
     return (
       <article className="timeline-item timeline-item--user" data-message-id={item.id}>
-        <div className="timeline-item__bubble">
-          {item.attachments?.length ? (
-            <div className="timeline-item__attachments">
-              {item.attachments.map((attachment, index) => attachment.kind === "image" && attachment.data ? (
-                <img
-                  key={`${item.id}:${index}`}
-                  className="timeline-item__attachment timeline-item__attachment--image"
-                  src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                  alt={attachment.name}
-                />
-              ) : (
-                <div key={`${item.id}:${index}`} className="timeline-item__attachment timeline-item__attachment--file" title={attachment.path}>
-                  <span className="timeline-item__attachment-icon"><FileIcon /></span>
-                  <span className="timeline-item__attachment-name">{attachment.name}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <MessageMarkdown text={item.text} />
+        <div className="timeline-item__column">
+          <div className="timeline-item__bubble">
+            {item.attachments?.length ? (
+              <div className="timeline-item__attachments">
+                {item.attachments.map((attachment, index) => attachment.kind === "image" && attachment.data ? (
+                  <img
+                    key={`${item.id}:${index}`}
+                    className="timeline-item__attachment timeline-item__attachment--image"
+                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    alt={attachment.name}
+                  />
+                ) : (
+                  <div key={`${item.id}:${index}`} className="timeline-item__attachment timeline-item__attachment--file" title={attachment.path}>
+                    <span className="timeline-item__attachment-icon"><FileIcon /></span>
+                    <span className="timeline-item__attachment-name">{attachment.name}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <MessageMarkdown text={item.text} />
+          </div>
+          <MessageMeta at={item.at} align="end" />
         </div>
       </article>
     );
@@ -63,18 +67,16 @@ export const TimelineItem = memo(function TimelineItem({
 
   if (item.kind === "assistant") {
     if (!item.text.trim() && !item.streaming) return null;
-    const canFork = Boolean(onFork && item.text.trim());
     return (
       <article className="timeline-item timeline-item--assistant" data-message-id={item.id}>
         <MessageMarkdown text={item.text} />
-        {canFork ? (
-          <div className="timeline-item__actions">
-            <button type="button" className="timeline-item__action" title="Fork conversation from this point" aria-label="Fork conversation from this point" data-testid="fork-from-message" onClick={() => onFork?.(item.id)}>
-              <ForkIcon />
-              <span className="timeline-item__action-label">Fork</span>
-            </button>
-          </div>
-        ) : null}
+        <MessageMeta
+          text={item.text}
+          at={item.at}
+          itemId={item.id}
+          onFork={onFork}
+          showCopy
+        />
       </article>
     );
   }
@@ -89,10 +91,19 @@ export const TimelineItem = memo(function TimelineItem({
 
   if (item.kind === "thought") {
     if (showThoughts === false) return null;
+    const text = item.text.trim();
+    if (!text && !item.streaming) return null;
     return (
-      <div className="timeline-activity">
-        <span className="timeline-activity__label">Thinking</span>
-      </div>
+      <details className="timeline-thought" open={Boolean(item.streaming)} data-testid="timeline-thought">
+        <summary className="timeline-thought__summary">
+          <span className="timeline-activity__label">{item.streaming ? "Thinking" : "Thought"}</span>
+        </summary>
+        {text ? (
+          <div className="timeline-thought__body">
+            <MessageMarkdown text={text} />
+          </div>
+        ) : null}
+      </details>
     );
   }
 
@@ -243,6 +254,79 @@ export const TimelineItem = memo(function TimelineItem({
     </article>
   );
 });
+
+function MessageMeta({
+  text,
+  at,
+  itemId,
+  onFork,
+  showCopy = false,
+  align = "start",
+}: {
+  readonly text?: string;
+  readonly at: number;
+  readonly itemId?: string;
+  readonly onFork?: (itemId: string) => void;
+  readonly showCopy?: boolean;
+  readonly align?: "start" | "end";
+}) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const timestamp = formatMessageTimestamp(at);
+  const canCopy = Boolean(showCopy && text?.trim());
+  const canFork = Boolean(onFork && itemId && text?.trim());
+  if (!canCopy && !canFork && !timestamp) return null;
+
+  const dateTime = Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : undefined;
+
+  return (
+    <div className={`timeline-item__meta ${align === "end" ? "timeline-item__meta--end" : ""}`}>
+      {canCopy || canFork ? (
+        <div className="timeline-item__actions">
+          {canCopy ? (
+            <button
+              type="button"
+              className="timeline-item__action"
+              title={copied ? "Copied" : "Copy to clipboard"}
+              aria-label={copied ? "Copied" : "Copy to clipboard"}
+              data-testid="copy-message"
+              onClick={() => {
+                if (!text) return;
+                void navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => {});
+              }}
+            >
+              <CopyIcon />
+              <span className="timeline-item__action-label">{copied ? "Copied" : "Copy"}</span>
+            </button>
+          ) : null}
+          {canFork && itemId ? (
+            <button
+              type="button"
+              className="timeline-item__action"
+              title="Fork conversation from this point"
+              aria-label="Fork conversation from this point"
+              data-testid="fork-from-message"
+              onClick={() => onFork?.(itemId)}
+            >
+              <ForkIcon />
+              <span className="timeline-item__action-label">Fork</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {timestamp ? (
+        <time className="timeline-item__time" dateTime={dateTime} data-testid="message-timestamp">
+          {timestamp}
+        </time>
+      ) : null}
+    </div>
+  );
+}
 
 function toolStatus(status: string): "running" | "success" | "error" {
   if (status === "failed" || status === "error") return "error";

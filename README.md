@@ -52,12 +52,15 @@ npm install
 npm run dev
 ```
 
-Open a folder with **File → Open Folder** (⌘O), then **New thread**.
+If you are not already signed in, the app opens a Grok CLI sign-in flow
+(`grok login`) before the thread UI. After that, open a folder with
+**File → Open Folder** (⌘O), then **New thread**.
 
 | Shortcut | Action |
 | --- | --- |
 | ⌘/Ctrl+N | New thread |
 | ⌘/Ctrl+O | Open folder |
+| ⌘/Ctrl+, | Settings |
 | ⌘/Ctrl+B | Toggle sidebar |
 | ⌘/Ctrl+D | Toggle review panel |
 | ⌘/Ctrl+J | Toggle terminal |
@@ -72,10 +75,16 @@ Unsigned desktop builds (no Apple notarization):
 npm run package:dir    # unpacked app, fastest to try
 npm run package:mac    # .dmg + .zip (macOS)
 npm run package:linux  # AppImage
+npm run package:win    # unsigned NSIS installer (run on Windows)
 ```
 
 Gatekeeper will warn on unsigned macOS builds. That’s expected until a signing
 identity is configured.
+
+Maintainers: the public-release workflow and checklist are documented in
+[docs/releasing.md](docs/releasing.md). A version tag builds Linux and unsigned
+Windows artifacts in CI; a local macOS command signs, notarizes, and assembles a
+draft release. Nothing publishes a release automatically.
 
 ## Architecture
 

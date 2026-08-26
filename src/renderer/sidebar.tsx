@@ -1,4 +1,10 @@
-import { useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+} from "../shared/layout";
 import type {
   AccountUsage,
   AppView,
@@ -26,6 +32,11 @@ export function cwdName(cwd: string): string {
   return parts[parts.length - 1] ?? cwd;
 }
 
+export function workspaceDisplayName(cwd: string, names?: Record<string, string>): string {
+  const custom = names?.[cwd]?.trim();
+  return custom || cwdName(cwd);
+}
+
 export function relTime(iso?: string | null): string {
   if (!iso) return "";
   const t = Date.parse(iso);
@@ -37,12 +48,10 @@ export function relTime(iso?: string | null): string {
   return `${Math.floor(s / 86400)}d`;
 }
 
-function indicator(
-  activity: SessionSummary["activity"],
-): "running" | "failed" | "unseen" | "none" {
-  if (activity === "working") return "running";
-  if (activity === "failed") return "failed";
-  if (activity === "needs-input" || activity === "blocked") return "unseen";
+function indicator(s: SessionSummary): "running" | "failed" | "unseen" | "none" {
+  if (s.activity === "working") return "running";
+  if (s.activity === "failed") return "failed";
+  if (s.unseen || s.activity === "needs-input" || s.activity === "blocked") return "unseen";
   return "none";
 }
 
@@ -59,23 +68,35 @@ export function Sidebar({
   workspaceMenu,
   threadMenu,
   renamingId,
+  renamingWorkspace,
+  workspaceNames = {},
+  permanentWorktrees = {},
   onNewThread,
   onSetView,
   onPickFolder,
   onSelectWorkspace,
   onToggleWorkspace,
   onToggleWorkspaceMenu,
-  onUseFolder,
   onOpenFolder,
+  onCreateWorktree,
+  onRemoveWorktree,
   onRemoveWorkspace,
+  onStartWorkspaceRename,
+  onCommitWorkspaceRename,
+  onCancelWorkspaceRename,
   onSelectSession,
   onToggleThreadMenu,
   onToggleArchived,
   onStartRename,
   onCommitRename,
   onCancelRename,
+  onMarkRead,
+  onCopySessionId,
   onReorderWorkspaces,
   onReorderPinned,
+  width,
+  onWidthChange,
+  onWidthCommit,
 }: {
   readonly view: AppView;
   readonly cwd: string;
@@ -89,24 +110,37 @@ export function Sidebar({
   readonly workspaceMenu: string | null;
   readonly threadMenu: string | null;
   readonly renamingId: string | null;
+  readonly renamingWorkspace: string | null;
+  readonly workspaceNames: Record<string, string>;
+  readonly permanentWorktrees: Record<string, string>;
   readonly onNewThread: () => void;
   readonly onSetView: (view: AppView) => void;
   readonly onPickFolder: () => void;
   readonly onSelectWorkspace: (cwd: string) => void;
   readonly onToggleWorkspace: (cwd: string) => void;
   readonly onToggleWorkspaceMenu: (cwd: string) => void;
-  readonly onUseFolder: (cwd: string) => void;
   readonly onOpenFolder: (cwd: string) => void;
+  readonly onCreateWorktree: (cwd: string) => void;
+  readonly onRemoveWorktree: (cwd: string) => void;
   readonly onRemoveWorkspace: (cwd: string) => void;
+  readonly onStartWorkspaceRename: (cwd: string) => void;
+  readonly onCommitWorkspaceRename: (cwd: string, name: string) => void;
+  readonly onCancelWorkspaceRename: () => void;
   readonly onSelectSession: (session: SessionSummary) => void;
   readonly onToggleThreadMenu: (sessionId: string) => void;
   readonly onToggleArchived: (cwd: string) => void;
   readonly onStartRename: (sessionId: string) => void;
   readonly onCommitRename: (sessionId: string, title: string) => void;
   readonly onCancelRename: () => void;
+  readonly onMarkRead: (sessionId: string) => void;
+  readonly onCopySessionId: (sessionId: string) => void;
   readonly onReorderWorkspaces?: (order: string[]) => void;
   readonly onReorderPinned?: (order: string[]) => void;
+  readonly width?: number;
+  readonly onWidthChange?: (width: number) => void;
+  readonly onWidthCommit?: (width: number) => void;
 }) {
+  const canCreateThread = groups.length > 0;
   const [dragId, setDragId] = useState<string | null>(null);
   const move = (list: string[], from: string, to: string) => {
     const next = list.filter((id) => id !== from);
@@ -118,7 +152,13 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar__top">
-        <button className="sidebar__new" type="button" onClick={onNewThread}>
+        <button
+          className="sidebar__new"
+          type="button"
+          disabled={!canCreateThread}
+          title={canCreateThread ? undefined : "Open a folder first"}
+          onClick={onNewThread}
+        >
           <PlusIcon />
           <span>New thread</span>
         </button>
@@ -166,7 +206,7 @@ export function Sidebar({
           <div className="section__tools">
             <div className="shortcut-tooltip-wrap">
               <button
-                aria-label="Add project folder"
+                aria-label="Open folder"
                 className="icon-button"
                 type="button"
                 onClick={onPickFolder}
@@ -174,13 +214,14 @@ export function Sidebar({
                 <FolderIcon />
               </button>
               <span className="shortcut-tooltip" role="tooltip">
-                <span>Add project</span>
+                <span>Open folder</span>
               </span>
             </div>
           </div>
         </div>
 
-        {groups.length === 0 ? (
+        <div className="sidebar__section-body">
+          {groups.length === 0 ? (
           <div className="empty-state" data-testid="empty-state">
             <h2>No folders yet</h2>
             <p>
@@ -238,6 +279,8 @@ export function Sidebar({
                         onCommitRename(s.sessionId, title)
                       }
                       onCancelRename={onCancelRename}
+                      onMarkRead={() => onMarkRead(s.sessionId)}
+                      onCopySessionId={() => onCopySessionId(s.sessionId)}
                     />
                   ))}
                 </div>
@@ -246,11 +289,13 @@ export function Sidebar({
 
             {groups.map((g) => {
               const isCollapsed = Boolean(collapsedWorkspaces[g.cwd]);
+              const linkedWorktree = permanentWorktrees[g.cwd];
+              const displayName = workspaceDisplayName(g.cwd, workspaceNames);
               return (
                 <section className="workspace-group" key={g.cwd}>
                   <div
                     className={`workspace-row ${g.cwd === cwd ? "workspace-row--active" : ""}`}
-                    draggable
+                    draggable={renamingWorkspace !== g.cwd}
                     onDragStart={() => setDragId(`ws:${g.cwd}`)}
                     onDragEnd={() => setDragId(null)}
                     onDragOver={(event) => event.preventDefault()}
@@ -269,10 +314,11 @@ export function Sidebar({
                     }}
                   >
                     <button
-                      className="workspace-row__select workspace-row__select--draggable"
+                      aria-expanded={!isCollapsed}
+                      aria-label={isCollapsed ? `Expand ${displayName}` : `Collapse ${displayName}`}
+                      className="workspace-row__collapse"
                       type="button"
                       onClick={() => onToggleWorkspace(g.cwd)}
-                      onDoubleClick={() => onSelectWorkspace(g.cwd)}
                     >
                       <span
                         className="workspace-row__icon"
@@ -285,12 +331,21 @@ export function Sidebar({
                           <FolderIcon />
                         </span>
                       </span>
+                    </button>
+                    <button
+                      className="workspace-row__select workspace-row__select--draggable"
+                      type="button"
+                      onClick={() => onSelectWorkspace(g.cwd)}
+                    >
                       <span className="workspace-row__name">
-                        {cwdName(g.cwd)}
+                        {displayName}
                       </span>
                     </button>
                     <span className="workspace-row__menu-wrap">
                       <button
+                        aria-label={`Workspace actions for ${displayName}`}
+                        aria-haspopup="menu"
+                        aria-expanded={workspaceMenu === g.cwd}
                         className="icon-button workspace-row__menu-button"
                         type="button"
                         onClick={(e) => {
@@ -301,32 +356,82 @@ export function Sidebar({
                         …
                       </button>
                       {workspaceMenu === g.cwd && (
-                        <div className="workspace-menu">
-                          <button
-                            className="workspace-menu__item"
-                            type="button"
-                            onClick={() => onUseFolder(g.cwd)}
-                          >
-                            Use this folder
-                          </button>
+                        <div className="workspace-menu" role="menu">
                           <button
                             className="workspace-menu__item"
                             type="button"
                             onClick={() => onOpenFolder(g.cwd)}
                           >
-                            Reveal in Finder
+                            Open folder
+                          </button>
+                          {linkedWorktree ? (
+                            <button
+                              className="workspace-menu__item workspace-menu__item--danger"
+                              type="button"
+                              onClick={() => onRemoveWorktree(g.cwd)}
+                            >
+                              Remove worktree
+                            </button>
+                          ) : (
+                            <button
+                              className="workspace-menu__item"
+                              type="button"
+                              onClick={() => onCreateWorktree(g.cwd)}
+                            >
+                              Create permanent worktree
+                            </button>
+                          )}
+                          <button
+                            className="workspace-menu__item"
+                            type="button"
+                            onClick={() => onStartWorkspaceRename(g.cwd)}
+                          >
+                            Edit name
                           </button>
                           <button
                             className="workspace-menu__item workspace-menu__item--danger"
                             type="button"
                             onClick={() => onRemoveWorkspace(g.cwd)}
                           >
-                            Remove project
+                            Remove
                           </button>
                         </div>
                       )}
                     </span>
                   </div>
+                  {renamingWorkspace === g.cwd ? (
+                    <form
+                      className="workspace-rename"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const next = new FormData(event.currentTarget).get("title");
+                        if (typeof next === "string") onCommitWorkspaceRename(g.cwd, next);
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        autoFocus
+                        aria-label={`Rename ${displayName}`}
+                        className="workspace-rename__input"
+                        defaultValue={displayName}
+                        name="title"
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            onCancelWorkspaceRename();
+                          }
+                        }}
+                      />
+                      <div className="workspace-rename__actions">
+                        <button className="workspace-rename__button" type="button" onClick={onCancelWorkspaceRename}>
+                          Cancel
+                        </button>
+                        <button className="workspace-rename__button workspace-rename__button--primary" type="submit">
+                          Save
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                   {!isCollapsed && (
                     <>
                       <div className="session-list">
@@ -344,6 +449,8 @@ export function Sidebar({
                               onCommitRename(s.sessionId, title)
                             }
                             onCancelRename={onCancelRename}
+                            onMarkRead={() => onMarkRead(s.sessionId)}
+                            onCopySessionId={() => onCopySessionId(s.sessionId)}
                           />
                         ))}
                       </div>
@@ -384,6 +491,8 @@ export function Sidebar({
                                     onCommitRename(s.sessionId, title)
                                   }
                                   onCancelRename={onCancelRename}
+                                  onMarkRead={() => onMarkRead(s.sessionId)}
+                                  onCopySessionId={() => onCopySessionId(s.sessionId)}
                                 />
                               ))}
                             </div>
@@ -396,10 +505,112 @@ export function Sidebar({
               );
             })}
           </div>
-        )}
+          )}
+        </div>
       </div>
       <UsageFooter accountUsage={accountUsage} auth={auth} />
+      {onWidthChange && onWidthCommit ? (
+        <SidebarResizeHandle
+          width={width ?? DEFAULT_SIDEBAR_WIDTH}
+          onWidthChange={onWidthChange}
+          onWidthCommit={onWidthCommit}
+        />
+      ) : null}
     </aside>
+  );
+}
+
+function SidebarResizeHandle({
+  width,
+  onWidthChange,
+  onWidthCommit,
+}: {
+  readonly width: number;
+  readonly onWidthChange: (width: number) => void;
+  readonly onWidthCommit: (width: number) => void;
+}) {
+  const drag = useRef<{
+    startX: number;
+    startWidth: number;
+    move: (event: globalThis.MouseEvent) => void;
+    up: (event: globalThis.MouseEvent) => void;
+  } | null>(null);
+  const widthRef = useRef(width);
+  const changeRef = useRef(onWidthChange);
+  const commitRef = useRef(onWidthCommit);
+  widthRef.current = width;
+  changeRef.current = onWidthChange;
+  commitRef.current = onWidthCommit;
+
+  useEffect(() => () => {
+    const current = drag.current;
+    document.documentElement.classList.remove("sidebar-resizing");
+    if (!current) return;
+    window.removeEventListener("mousemove", current.move);
+    window.removeEventListener("mouseup", current.up);
+    drag.current = null;
+  }, []);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 32 : 12;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(widthRef.current - step, window.innerWidth));
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(widthRef.current + step, window.innerWidth));
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(MIN_SIDEBAR_WIDTH, window.innerWidth));
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(MAX_SIDEBAR_WIDTH, window.innerWidth));
+    }
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      aria-valuemin={MIN_SIDEBAR_WIDTH}
+      aria-valuemax={MAX_SIDEBAR_WIDTH}
+      aria-valuenow={width}
+      className="sidebar__resize-handle"
+      tabIndex={0}
+      onMouseDown={(event) => {
+        if (event.button !== 0 || event.detail > 1) return;
+        event.preventDefault();
+        const move = (moveEvent: globalThis.MouseEvent) => {
+          moveEvent.preventDefault();
+          const current = drag.current;
+          if (!current) return;
+          changeRef.current(clampSidebarWidth(current.startWidth + (moveEvent.clientX - current.startX), window.innerWidth));
+        };
+        const up = (upEvent: globalThis.MouseEvent) => {
+          const current = drag.current;
+          if (current) {
+            commitRef.current(clampSidebarWidth(current.startWidth + (upEvent.clientX - current.startX), window.innerWidth));
+            window.removeEventListener("mousemove", current.move);
+            window.removeEventListener("mouseup", current.up);
+          }
+          drag.current = null;
+          document.documentElement.classList.remove("sidebar-resizing");
+        };
+        drag.current = { startX: event.clientX, startWidth: widthRef.current, move, up };
+        document.documentElement.classList.add("sidebar-resizing");
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up);
+      }}
+      onDoubleClick={() => commitRef.current(DEFAULT_SIDEBAR_WIDTH)}
+      onKeyDown={onKeyDown}
+    />
   );
 }
 
@@ -507,6 +718,8 @@ function ThreadRow({
   onStartRename,
   onCommitRename,
   onCancelRename,
+  onMarkRead,
+  onCopySessionId,
 }: {
   s: SessionSummary;
   active: boolean;
@@ -523,8 +736,10 @@ function ThreadRow({
   onStartRename: () => void;
   onCommitRename: (title: string) => void;
   onCancelRename: () => void;
+  onMarkRead: () => void;
+  onCopySessionId: () => void;
 }) {
-  const variant = indicator(s.activity);
+  const variant = indicator(s);
   if (renaming) {
     return (
       <form
@@ -684,6 +899,22 @@ function ThreadRow({
                     }
                   >
                     {archived ? "Restore" : "Archive"}
+                  </button>
+                  {s.unseen ? (
+                    <button
+                      className="workspace-menu__item"
+                      type="button"
+                      onClick={onMarkRead}
+                    >
+                      Mark as read
+                    </button>
+                  ) : null}
+                  <button
+                    className="workspace-menu__item"
+                    type="button"
+                    onClick={onCopySessionId}
+                  >
+                    Copy session id
                   </button>
                   <button
                     className="workspace-menu__item workspace-menu__item--danger"

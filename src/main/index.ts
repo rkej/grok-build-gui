@@ -118,7 +118,16 @@ function installMenu(): void {
     {
       label: "File",
       submenu: [
-        { label: "New Thread", accelerator: "CmdOrCtrl+N", click: () => void store.newSession() },
+        {
+          label: "New Thread",
+          accelerator: "CmdOrCtrl+N",
+          click: () => win?.webContents.send(ipc.openNewThread),
+        },
+        {
+          label: "Rename Current Thread",
+          accelerator: "CmdOrCtrl+Shift+R",
+          click: () => win?.webContents.send(ipc.renameCurrentThread),
+        },
         { label: "Open Folder", accelerator: "CmdOrCtrl+O", click: () => void pickFolder() },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
@@ -142,9 +151,27 @@ function installMenu(): void {
           accelerator: "CmdOrCtrl+F",
           click: () => win?.webContents.send(ipc.findInThread),
         },
+        { type: "separator" },
+        {
+          label: "Settings",
+          accelerator: "CmdOrCtrl+,",
+          click: () => win?.webContents.send(ipc.openSettings),
+        },
       ],
     },
-    { role: "viewMenu" },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
     { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -183,8 +210,12 @@ if (!gotLock) {
     win.focus();
   });
 
+function applyNativeTheme(mode: string | undefined): void {
+  nativeTheme.themeSource = mode === "light" || mode === "dark" ? mode : "system";
+}
+
 app.whenReady().then(async () => {
-  nativeTheme.themeSource = "system";
+  applyNativeTheme(store.gui.themeMode);
   installMenu();
   registerIpc({
     store,
@@ -192,7 +223,10 @@ app.whenReady().then(async () => {
     getWindow: () => win,
     pickFolder,
   });
-  store.on("change", sendState);
+  store.on("change", () => {
+    applyNativeTheme(store.gui.themeMode);
+    sendState();
+  });
   store.on("transcript-change", sendTranscript);
   store.on("run-finished", (info: { sessionId: string | null; title: string; ok: boolean }) => {
     const focused = Boolean(win && !win.isDestroyed() && win.isFocused() && store.activeSessionId === info.sessionId);
@@ -229,6 +263,7 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 app.on("before-quit", () => {
+  store.cancelLogin();
   store.agentTerminals.dispose();
   terminal.stop();
   store.client.stop();
