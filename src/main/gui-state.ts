@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { clampSidebarWidth } from "../shared/layout.js";
 import { DEFAULT_GUI_STATE, type GuiState } from "../shared/protocol.js";
 import { grokHome, guiStatePath } from "./paths.js";
 
@@ -21,6 +22,9 @@ export function loadGuiState(): GuiState {
       lastSeen: record(raw.lastSeen),
       composerDrafts: record(raw.composerDrafts),
       permanentWorktrees: record(raw.permanentWorktrees),
+      sidebarWidth: clampSidebarWidth(
+        typeof raw.sidebarWidth === "number" ? raw.sidebarWidth : DEFAULT_GUI_STATE.sidebarWidth,
+      ),
       terminalHeight: typeof raw.terminalHeight === "number" ? raw.terminalHeight : DEFAULT_GUI_STATE.terminalHeight,
       terminalTakeover: Boolean(raw.terminalTakeover),
     };

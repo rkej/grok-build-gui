@@ -1,4 +1,10 @@
-import { useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+} from "../shared/layout";
 import type {
   AccountUsage,
   AppView,
@@ -88,6 +94,9 @@ export function Sidebar({
   onCopySessionId,
   onReorderWorkspaces,
   onReorderPinned,
+  width,
+  onWidthChange,
+  onWidthCommit,
 }: {
   readonly view: AppView;
   readonly cwd: string;
@@ -127,6 +136,9 @@ export function Sidebar({
   readonly onCopySessionId: (sessionId: string) => void;
   readonly onReorderWorkspaces?: (order: string[]) => void;
   readonly onReorderPinned?: (order: string[]) => void;
+  readonly width?: number;
+  readonly onWidthChange?: (width: number) => void;
+  readonly onWidthCommit?: (width: number) => void;
 }) {
   const canCreateThread = groups.length > 0;
   const [dragId, setDragId] = useState<string | null>(null);
@@ -497,7 +509,108 @@ export function Sidebar({
         </div>
       </div>
       <UsageFooter accountUsage={accountUsage} auth={auth} />
+      {onWidthChange && onWidthCommit ? (
+        <SidebarResizeHandle
+          width={width ?? DEFAULT_SIDEBAR_WIDTH}
+          onWidthChange={onWidthChange}
+          onWidthCommit={onWidthCommit}
+        />
+      ) : null}
     </aside>
+  );
+}
+
+function SidebarResizeHandle({
+  width,
+  onWidthChange,
+  onWidthCommit,
+}: {
+  readonly width: number;
+  readonly onWidthChange: (width: number) => void;
+  readonly onWidthCommit: (width: number) => void;
+}) {
+  const drag = useRef<{
+    startX: number;
+    startWidth: number;
+    move: (event: globalThis.MouseEvent) => void;
+    up: (event: globalThis.MouseEvent) => void;
+  } | null>(null);
+  const widthRef = useRef(width);
+  const changeRef = useRef(onWidthChange);
+  const commitRef = useRef(onWidthCommit);
+  widthRef.current = width;
+  changeRef.current = onWidthChange;
+  commitRef.current = onWidthCommit;
+
+  useEffect(() => () => {
+    const current = drag.current;
+    document.documentElement.classList.remove("sidebar-resizing");
+    if (!current) return;
+    window.removeEventListener("mousemove", current.move);
+    window.removeEventListener("mouseup", current.up);
+    drag.current = null;
+  }, []);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 32 : 12;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(widthRef.current - step, window.innerWidth));
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(widthRef.current + step, window.innerWidth));
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(MIN_SIDEBAR_WIDTH, window.innerWidth));
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      commitRef.current(clampSidebarWidth(MAX_SIDEBAR_WIDTH, window.innerWidth));
+    }
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      aria-valuemin={MIN_SIDEBAR_WIDTH}
+      aria-valuemax={MAX_SIDEBAR_WIDTH}
+      aria-valuenow={width}
+      className="sidebar__resize-handle"
+      tabIndex={0}
+      onMouseDown={(event) => {
+        if (event.button !== 0 || event.detail > 1) return;
+        event.preventDefault();
+        const move = (moveEvent: globalThis.MouseEvent) => {
+          moveEvent.preventDefault();
+          const current = drag.current;
+          if (!current) return;
+          changeRef.current(clampSidebarWidth(current.startWidth + (moveEvent.clientX - current.startX), window.innerWidth));
+        };
+        const up = (upEvent: globalThis.MouseEvent) => {
+          const current = drag.current;
+          if (current) {
+            commitRef.current(clampSidebarWidth(current.startWidth + (upEvent.clientX - current.startX), window.innerWidth));
+            window.removeEventListener("mousemove", current.move);
+            window.removeEventListener("mouseup", current.up);
+          }
+          drag.current = null;
+          document.documentElement.classList.remove("sidebar-resizing");
+        };
+        drag.current = { startX: event.clientX, startWidth: widthRef.current, move, up };
+        document.documentElement.classList.add("sidebar-resizing");
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up);
+      }}
+      onDoubleClick={() => commitRef.current(DEFAULT_SIDEBAR_WIDTH)}
+      onKeyDown={onKeyDown}
+    />
   );
 }
 

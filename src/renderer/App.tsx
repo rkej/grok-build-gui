@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AppSnapshot, AppView, ComposerAttachment, RewindPoint, SlashOption, ThemeMode, ThemePresetId, ToolCallState, TranscriptItem, TranscriptSnapshot } from "../shared/protocol";
 import { composerDraftKey } from "../shared/composer-drafts";
+import { clampSidebarWidth, DEFAULT_SIDEBAR_WIDTH } from "../shared/layout";
 import { ComposerPanel, type ComposerMenu } from "./composer-panel";
 import { ConversationTimeline } from "./conversation-timeline";
 import { DiffPanel } from "./diff-panel";
@@ -62,6 +63,7 @@ export default function App() {
   const [treeError, setTreeError] = useState<string | undefined>();
   const [treePoints, setTreePoints] = useState<RewindPoint[]>([]);
   const [liveTerminalHeight, setLiveTerminalHeight] = useState<number | null>(null);
+  const [liveSidebarWidth, setLiveSidebarWidth] = useState<number | null>(null);
   const [slashOptions, setSlashOptions] = useState<SlashOption[]>([]);
   const [slashOptionTitle, setSlashOptionTitle] = useState("");
   const [selectedSlashOption, setSelectedSlashOption] = useState("");
@@ -973,6 +975,10 @@ export default function App() {
     );
   }
 
+  const sidebarWidth = clampSidebarWidth(
+    liveSidebarWidth ?? state.gui.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH,
+    typeof window === "undefined" ? 1440 : window.innerWidth,
+  );
   const shellClass = ["shell", collapsed ? "shell--sidebar-collapsed" : ""].join(" ");
   const terminalHeight = liveTerminalHeight ?? state.gui.terminalHeight ?? 340;
   const terminalTakeover = Boolean(state.gui.terminalTakeover);
@@ -984,7 +990,7 @@ export default function App() {
   ].filter(Boolean).join(" ");
 
   return (
-    <div className={shellClass}>
+    <div className={shellClass} style={{ ["--sidebar-width" as string]: `${sidebarWidth}px` }}>
       <SidebarToggleButton
         collapsed={collapsed}
         shortcutLabel={shortcut}
@@ -1049,6 +1055,12 @@ export default function App() {
           onCopySessionId={(sessionId) => { setThreadMenu(null); void api.copyText(sessionId); }}
           onReorderWorkspaces={(order) => void api.reorderWorkspaces(order)}
           onReorderPinned={(order) => void api.reorderPinned(order)}
+          width={sidebarWidth}
+          onWidthChange={setLiveSidebarWidth}
+          onWidthCommit={(width) => {
+            setLiveSidebarWidth(width);
+            persistGui({ sidebarWidth: width });
+          }}
         />
       )}
 
