@@ -1,0 +1,14 @@
+Grok Build GUI
+Copyright 2026 Grok Build GUI contributors
+
+This is an unofficial UI shell around the Grok Build CLI. It is not an
+xAI product and is not affiliated with, endorsed by, or maintained by xAI.
+
+Visual language (Codex-style tokens, transcript chrome, and several
+interaction patterns) is adapted from pi-gui, MIT licensed:
+
+  https://github.com/minghinmatthewlam/pi-gui
+  Copyright Matthew Lam
+
+Runtime behavior, session files, and agent execution belong to the
+Grok CLI (`grok agent --no-leader stdio`), not this repository.
