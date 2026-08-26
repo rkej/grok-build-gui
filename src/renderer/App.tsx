@@ -916,6 +916,8 @@ export default function App() {
           onSelectSession={(session) => {
             setView("threads");
             setThreadMenu(null);
+            const next = visitThread(threadHistoryRef.current, session.sessionId);
+            if (next !== threadHistoryRef.current) commitThreadHistory(next);
             void api.openSession(session.sessionId, session.cwd);
           }}
           onToggleThreadMenu={(sessionId) => setThreadMenu(threadMenu === sessionId ? null : sessionId)}
@@ -954,6 +956,10 @@ export default function App() {
           promptRailVisible={showPromptRail}
           onTogglePromptRail={() => persistGui({ showPromptRail: !showPromptRail })}
           panelsAvailable={view === "threads" && Boolean(state.activeSessionId)}
+          canGoBack={view === "threads" && canNavigateThreadHistory(threadHistory, -1, availableSessionIds)}
+          canGoForward={view === "threads" && canNavigateThreadHistory(threadHistory, 1, availableSessionIds)}
+          onGoBack={() => navigateThreadHistory(-1)}
+          onGoForward={() => navigateThreadHistory(1)}
         />
 
         {view === "new-thread" && (
