@@ -3,7 +3,6 @@ import { ipc } from "../shared/ipc.js";
 import { isHttpUrl } from "../shared/url.js";
 import { isInside } from "../shared/workspace-path.js";
 import { grokHome } from "./paths.js";
-import { isInside } from "../shared/workspace-path.js";
 import type { AppStore } from "./store.js";
 import type { TerminalHost } from "./terminal.js";
 
@@ -108,7 +107,7 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.selectEnvironment, (_e, id: string) => store.selectEnvironment(id));
   ipcMain.handle(ipc.terminalStart, (_e, cwd?: string) => {
     const win = getWindow();
-    const target = cwd || store.cwd;
+    const target = allowedTerminalCwd(store, cwd);
     terminal.start(
       target,
       (data) => win?.webContents.send(ipc.terminalData, data),
