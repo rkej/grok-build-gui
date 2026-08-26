@@ -137,15 +137,8 @@
   margin-bottom: 8px;
 }
 
-.section__tools .shortcut-tooltip {
-  left: auto;
-  right: 0;
-  transform: translateY(-2px);
-}
-
-.section__tools .shortcut-tooltip-wrap:hover .shortcut-tooltip,
-.section__tools .shortcut-tooltip-wrap:focus-within .shortcut-tooltip {
-  transform: none;
+.section__tools .shortcut-tooltip-wrap {
+  z-index: 6;
 }
 
 .section__tools {
@@ -403,7 +396,7 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 10;
+  z-index: 30;
   min-width: 160px;
   padding: 6px;
   border-radius: var(--radius-2xl);
@@ -762,8 +755,8 @@
 
 .session-row__menu {
   top: calc(100% + 4px);
-  right: -6px;
-  z-index: 20;
+  right: 0;
+  z-index: 30;
 }
 
 .session-row:has(.session-row__menu) .session-row__menu-button {

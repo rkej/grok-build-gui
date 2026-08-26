@@ -163,6 +163,10 @@
   transform: translateX(-50%);
 }
 
+.sidebar .shortcut-tooltip {
+  z-index: 80;
+}
+
 .sidebar-toggle {
   -webkit-app-region: no-drag;
   position: absolute;
