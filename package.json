@@ -11,7 +11,7 @@
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "node scripts/fix-node-pty.mjs",
     "predev": "install-electron",
     "dev": "electron-vite dev",
     "build": "electron-vite build",

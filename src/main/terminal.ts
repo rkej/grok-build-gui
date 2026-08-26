@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
+import { chmodSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
+import path from "node:path";
 
 export type PtyHandle = {
   write(data: string): void;
@@ -37,8 +39,23 @@ export type TerminalHostOptions = {
   shell?: string;
 };
 
+function ensurePtyHelperExecutable(): void {
+  try {
+    const pkgDir = path.dirname(require.resolve("node-pty/package.json"));
+    const helpers = [
+      path.join(pkgDir, "prebuilds", `${process.platform}-${process.arch}`, "spawn-helper"),
+      path.join(pkgDir, "build", "Release", "spawn-helper"),
+    ];
+    for (const file of helpers) {
+      if (!existsSync(file)) continue;
+      try { chmodSync(file, 0o755); } catch {}
+    }
+  } catch {}
+}
+
 function loadPtySpawn(): PtySpawn | null {
   try {
+    ensurePtyHelperExecutable();
     const pty = require("node-pty") as { spawn?: PtySpawn };
     return typeof pty.spawn === "function" ? pty.spawn.bind(pty) : null;
   } catch {
@@ -88,7 +105,7 @@ export class TerminalHost {
     this.cwd = cwd || homedir();
     this.cols = Math.max(2, Math.floor(size?.cols ?? this.cols));
     this.rows = Math.max(1, Math.floor(size?.rows ?? this.rows));
-    const shell = this.options.shell ?? this.options.env?.SHELL ?? process.env.SHELL || "/bin/zsh";
+    const shell = this.options.shell ?? this.options.env?.SHELL ?? process.env.SHELL ?? "/bin/zsh";
     const env = terminalChildEnv(this.options.env ?? process.env);
     const ptySpawn = this.resolvePtySpawn();
 
