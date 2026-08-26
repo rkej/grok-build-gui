@@ -118,7 +118,17 @@ function installMenu(): void {
     {
       label: "File",
       submenu: [
-        { label: "New Thread", accelerator: "CmdOrCtrl+N", click: () => void store.newSession() },
+        {
+          label: "New Thread",
+          accelerator: "CmdOrCtrl+N",
+          click: () => {
+            if (!store.auth.authenticated) {
+              void store.login();
+              return;
+            }
+            void store.newSession();
+          },
+        },
         { label: "Open Folder", accelerator: "CmdOrCtrl+O", click: () => void pickFolder() },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
