@@ -1,11 +1,13 @@
-import { app, BrowserWindow, dialog, Menu, Notification, nativeTheme } from "electron";
+import { app, BrowserWindow, dialog, Menu, Notification, nativeTheme, shell } from "electron";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { AppStore } from "./store.js";
 import { registerIpc } from "./ipc.js";
+import { applyPosixPathDefaults } from "./paths.js";
 import { TerminalHost } from "./terminal.js";
 import { ipc } from "../shared/ipc.js";
+import { isHttpUrl } from "../shared/url.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const store = new AppStore();
@@ -29,6 +31,41 @@ function resolvePreload(): string {
   return path.join(dir, "index.mjs");
 }
 
+function resolveAppIcon(): string | undefined {
+  const candidates = [
+    path.join(process.resourcesPath ?? "", "icon.png"),
+    path.join(__dirname, "../../resources/icon.png"),
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
+function rendererIndexPath(): string {
+  return path.normalize(path.join(__dirname, "../renderer/index.html"));
+}
+
+function isAppNavigationUrl(url: string): boolean {
+  const dev = process.env.ELECTRON_RENDERER_URL;
+  if (dev) {
+    try {
+      return new URL(url).origin === new URL(dev).origin;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "file:") return false;
+    return path.normalize(fileURLToPath(parsed)) === rendererIndexPath();
+  } catch {
+    return false;
+  }
+}
+
+function openExternalIfHttp(url: string): void {
+  if (!isHttpUrl(url)) return;
+  void shell.openExternal(url);
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1440,
@@ -36,6 +73,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 640,
     title: "Grok Build",
+    icon: resolveAppIcon(),
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 14 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1a1b1e" : "#eceef3",
@@ -44,8 +82,18 @@ function createWindow(): void {
       preload: resolvePreload(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isAppNavigationUrl(url)) openExternalIfHttp(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isAppNavigationUrl(url)) return;
+    event.preventDefault();
+    openExternalIfHttp(url);
   });
 
   win.once("ready-to-show", () => {
@@ -57,7 +105,7 @@ function createWindow(): void {
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
-    void win.loadFile(path.join(__dirname, "../renderer/index.html"));
+    void win.loadFile(rendererIndexPath());
   }
 }
 
@@ -120,58 +168,21 @@ async function pickFolder(): Promise<string | null> {
   return dir;
 }
 
+applyPosixPathDefaults();
+app.setName("Grok Build");
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
+
 app.whenReady().then(async () => {
-  // GROK-PUSH-ONCE
-  {
-    const { spawnSync } = await import("node:child_process");
-    const { appendFileSync } = await import("node:fs");
-    const repo = "/Users/rkej/dev/stonks/grok-build-gui";
-    const result = `${repo}/out/git-push-result.txt`;
-    const log = (msg: string) => {
-      try {
-        appendFileSync(result, msg.endsWith("\n") ? msg : `${msg}\n`);
-      } catch {
-        /* ignore */
-      }
-    };
-    log(`electron-whenReady-push ${new Date().toISOString()}`);
-    const env = {
-      ...process.env,
-      PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${process.env.PATH ?? ""}`,
-      GIT_TERMINAL_PROMPT: "0",
-      GH_NO_UPDATE_NOTIFIER: "1",
-      GH_PROMPT_DISABLED: "1",
-      GIT_OPTIONAL_LOCKS: "0",
-      GIT_INDEX_FILE: `${repo}/out/.push-index-electron`,
-    };
-    const run = (cmd: string, args: string[], timeout = 90_000) => {
-      const r = spawnSync(cmd, args, { cwd: repo, encoding: "utf8", env, timeout });
-      log(`${cmd} ${args.join(" ")} status=${r.status ?? "null"} err=${r.error?.message ?? ""} out=${(r.stdout ?? "").trim()} stderr=${(r.stderr ?? "").trim()}`);
-      return r;
-    };
-    run("git", ["add", "-A", "--", ".", ":!node_modules", ":!out", ":!dist", ":!dist-electron", ":!release"]);
-    const head = run("git", ["rev-parse", "HEAD"]);
-    if (head.status !== 0) {
-      run("git", ["commit", "-m", "Initial commit: Codex-style desktop UI for Grok Build"]);
-    } else if (run("git", ["diff", "--cached", "--quiet"]).status !== 0) {
-      run("git", ["commit", "-m", "Initial commit: Codex-style desktop UI for Grok Build"]);
-    }
-    const origin = run("git", ["remote", "get-url", "origin"]);
-    if (origin.status === 0) {
-      run("gh", ["repo", "edit", "rkej/grok-build-gui", "--visibility", "public", "--accept-visibility-change-consequences"]);
-      run("git", ["push", "-u", "origin", "HEAD"]);
-    } else if (run("gh", ["repo", "view", "rkej/grok-build-gui"]).status === 0) {
-      run("git", ["remote", "add", "origin", "https://github.com/rkej/grok-build-gui.git"]);
-      run("gh", ["repo", "edit", "rkej/grok-build-gui", "--visibility", "public", "--accept-visibility-change-consequences"]);
-      run("git", ["push", "-u", "origin", "HEAD"]);
-    } else {
-      run("gh", ["repo", "create", "grok-build-gui", "--public", "--source", ".", "--remote", "origin", "--push", "--description", "Codex-style desktop client for the Grok Build harness."]);
-    }
-    run("gh", ["repo", "view", "rkej/grok-build-gui", "--json", "url,visibility,isPrivate,nameWithOwner"]);
-    run("git", ["rev-parse", "HEAD"]);
-    log("DONE");
-  }
-  // GROK-PUSH-ONCE-END
   nativeTheme.themeSource = "system";
   installMenu();
   registerIpc({
@@ -218,3 +229,4 @@ app.on("before-quit", () => {
   terminal.stop();
   store.client.stop();
 });
+}

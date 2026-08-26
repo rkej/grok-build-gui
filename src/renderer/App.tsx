@@ -60,12 +60,18 @@ export default function App() {
   const stateRevRef = useRef(-1);
   const api = window.grokApp;
 
+  const applyStateSnapshot = useCallback((snapshot: AppSnapshot) => {
+    if (snapshot.rev < stateRevRef.current) return;
+    stateRevRef.current = snapshot.rev;
+    setState(snapshot);
+  }, []);
+
+  const resyncState = useCallback(() => {
+    void api.getState().then(applyStateSnapshot);
+  }, [api, applyStateSnapshot]);
+
   useEffect(() => {
-    const unsubState = api.onState((snapshot) => {
-      if (snapshot.rev < stateRevRef.current) return;
-      stateRevRef.current = snapshot.rev;
-      setState(snapshot);
-    });
+    const unsubState = api.onState(applyStateSnapshot);
     const unsubTranscript = api.onTranscript((next) => {
       // The main process emits transcript snapshots from the same active
       // session that it exposes in AppSnapshot. Filtering against a renderer
@@ -79,9 +85,7 @@ export default function App() {
       if (disposed) return;
       void Promise.all([api.getState(), api.getTranscript()]).then(([snapshot, selectedTranscript]) => {
         if (disposed) return;
-        if (snapshot.rev < stateRevRef.current) return;
-        stateRevRef.current = snapshot.rev;
-        setState(snapshot);
+        applyStateSnapshot(snapshot);
         if (selectedTranscript.sessionId === snapshot.activeSessionId) setTranscript(selectedTranscript);
         if (snapshot.activeSessionId) setView("threads");
       }).catch(() => {
@@ -96,7 +100,7 @@ export default function App() {
       unsubTranscript();
       if (retry != null) window.clearTimeout(retry);
     };
-  }, [api]);
+  }, [api, applyStateSnapshot]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -300,21 +304,16 @@ export default function App() {
     setState((current) => current
       ? { ...current, queue: current.queue.filter((entry) => entry.id !== id) }
       : current);
-    void api.removeQueuedMessage(id).then((snapshot) => {
-      if (snapshot.rev < stateRevRef.current) return;
-      stateRevRef.current = snapshot.rev;
-      setState(snapshot);
-    }).catch(async () => {
-      const snapshot = await api.getState();
-      if (snapshot.rev < stateRevRef.current) return;
-      stateRevRef.current = snapshot.rev;
-      setState(snapshot);
-    });
-  }, [api, editingQueuedMessageId, onCancelQueuedEdit]);
+    void api.removeQueuedMessage(id).then(applyStateSnapshot).catch(resyncState);
+  }, [api, applyStateSnapshot, editingQueuedMessageId, onCancelQueuedEdit, resyncState]);
 
   const onSteerQueuedMessage = useCallback((id: string) => {
-    void api.steerQueuedMessage(id);
-  }, [api]);
+    void api.steerQueuedMessage(id).then(applyStateSnapshot).catch(resyncState);
+  }, [api, applyStateSnapshot, resyncState]);
+
+  const onCancel = useCallback(() => {
+    void api.cancel().then(applyStateSnapshot).catch(resyncState);
+  }, [api, applyStateSnapshot, resyncState]);
 
   const submit = useCallback(async (deliveryMode?: "steer" | "followUp") => {
     const text = draft.trim();
@@ -326,7 +325,7 @@ export default function App() {
       queuedEditRestore.current = null;
       setEditingQueuedMessageId(null);
       setDraft("");
-      await api.editQueuedMessage(id, text, promptAttachments);
+      applyStateSnapshot(await api.editQueuedMessage(id, text, promptAttachments));
       return;
     }
     if (!state.activeSessionId || view === "new-thread") {
@@ -353,8 +352,8 @@ export default function App() {
       return;
     }
     setDraft("");
-    await api.prompt(text, promptAttachments, state.running ? { deliverAs: deliveryMode ?? "followUp" } : undefined);
-  }, [api, attachments, draft, editingQueuedMessageId, state, view, startNew]);
+    applyStateSnapshot(await api.prompt(text, promptAttachments, state.running ? { deliverAs: deliveryMode ?? "followUp" } : undefined));
+  }, [api, applyStateSnapshot, attachments, draft, editingQueuedMessageId, state, view, startNew]);
 
   const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOptions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -383,7 +382,7 @@ export default function App() {
         onCancelQueuedEdit();
         return;
       }
-      if (state?.running) void api.cancel();
+      if (state?.running) onCancel();
     }
   };
 
@@ -626,7 +625,7 @@ export default function App() {
       onDraftChange={onDraftChange}
       onKeyDown={onComposerKey}
       onSubmit={(mode) => void submit(mode)}
-      onCancel={() => void api.cancel()}
+      onCancel={onCancel}
       onPickSlash={onPickSlash}
       onPickSlashOption={onPickSlashOption}
       onPickMention={(path) => { setDraft((d) => d.replace(/@([^\s]*)$/, `@${path} `)); setMentionOpen(false); }}
@@ -801,7 +800,7 @@ export default function App() {
             onDraftChange={onDraftChange}
             onKeyDown={onComposerKey}
             onSubmit={(mode) => void submit(mode)}
-            onCancel={() => void api.cancel()}
+            onCancel={onCancel}
             onPickSlash={onPickSlash}
             onPickSlashOption={onPickSlashOption}
             onPickMention={(path) => { setDraft((d) => d.replace(/@([^\s]*)$/, `@${path} `)); setMentionOpen(false); }}

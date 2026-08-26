@@ -25,14 +25,26 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
     store.newSession(prompt, opts),
   );
   ipcMain.handle(ipc.openSession, (_e, sessionId: string, cwd?: string) => store.openSession(sessionId, cwd));
-  ipcMain.handle(ipc.prompt, (_e, text: string, attachments?: import("../shared/protocol.js").ComposerAttachment[], opts?: { deliverAs?: "steer" | "followUp" }) => store.prompt(text, attachments, opts));
-  ipcMain.handle(ipc.editQueuedMessage, (_e, id: string, text: string, attachments?: import("../shared/protocol.js").ComposerAttachment[]) => store.editQueuedMessage(id, text, attachments));
+  ipcMain.handle(ipc.prompt, async (_e, text: string, attachments?: import("../shared/protocol.js").ComposerAttachment[], opts?: { deliverAs?: "steer" | "followUp" }) => {
+    await store.prompt(text, attachments, opts);
+    return store.snapshot();
+  });
+  ipcMain.handle(ipc.editQueuedMessage, async (_e, id: string, text: string, attachments?: import("../shared/protocol.js").ComposerAttachment[]) => {
+    await store.editQueuedMessage(id, text, attachments);
+    return store.snapshot();
+  });
   ipcMain.handle(ipc.removeQueuedMessage, async (_e, id: string) => {
     await store.removeQueuedMessage(id);
     return store.snapshot();
   });
-  ipcMain.handle(ipc.steerQueuedMessage, (_e, id: string) => store.steerQueuedMessage(id));
-  ipcMain.handle(ipc.cancel, () => store.cancel());
+  ipcMain.handle(ipc.steerQueuedMessage, async (_e, id: string) => {
+    await store.steerQueuedMessage(id);
+    return store.snapshot();
+  });
+  ipcMain.handle(ipc.cancel, () => {
+    store.cancel();
+    return store.snapshot();
+  });
   ipcMain.handle(ipc.setModel, (_e, modelId: string) => store.setModel(modelId));
   ipcMain.handle(ipc.setMode, (_e, modeId: string) => store.setMode(modeId));
   ipcMain.handle(ipc.setEffort, (_e, effort: string) => store.setEffort(effort));
