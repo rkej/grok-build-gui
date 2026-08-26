@@ -211,7 +211,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
               })}
               {running ? (
                 <div className="timeline-activity">
-                  <span className="timeline-activity__label">Working…</span>
+                  <span className="timeline-activity__label">{runningLabel ?? "Working…"}</span>
                 </div>
               ) : null}
             </div>
