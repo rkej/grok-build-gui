@@ -1,4 +1,9 @@
-import type { AppSnapshot, ThemeMode, ThemePresetId } from "../shared/protocol";
+import type { AppSnapshot, FontScale, MonoFontId, ThemeMode, ThemePresetId, UiFontId } from "../shared/protocol";
+import {
+  FONT_SCALE_OPTIONS,
+  MONO_FONT_OPTIONS,
+  UI_FONT_OPTIONS,
+} from "../shared/fonts";
 import { permissionLabel } from "./composer-panel";
 import { themePresets } from "./theme-presets";
 
@@ -17,12 +22,18 @@ export function SettingsView({
   onSetThemeMode,
   onSetThemePreset,
   onSetTransparency,
+  onSetUiFont,
+  onSetMonoFont,
+  onSetFontScale,
 }: {
   readonly state: AppSnapshot;
   readonly section: SettingsSection;
   readonly onSetThemeMode: (mode: ThemeMode) => void;
   readonly onSetThemePreset: (id: ThemePresetId) => void;
   readonly onSetTransparency: (enabled: boolean) => void;
+  readonly onSetUiFont: (id: UiFontId) => void;
+  readonly onSetMonoFont: (id: MonoFontId) => void;
+  readonly onSetFontScale: (scale: FontScale) => void;
 }) {
   return (
     <section className="canvas">
@@ -40,9 +51,15 @@ export function SettingsView({
               themeMode={state.gui.themeMode ?? "system"}
               themePresetId={state.gui.themePresetId ?? "default"}
               enableTransparency={Boolean(state.gui.enableTransparency)}
+              uiFontId={state.gui.uiFontId ?? "system"}
+              monoFontId={state.gui.monoFontId ?? "system"}
+              fontScale={state.gui.fontScale ?? 100}
               onSetThemeMode={onSetThemeMode}
               onSetThemePreset={onSetThemePreset}
               onSetTransparency={onSetTransparency}
+              onSetUiFont={onSetUiFont}
+              onSetMonoFont={onSetMonoFont}
+              onSetFontScale={onSetFontScale}
             />
           ) : null}
           {section === "models" ? <ModelsSection state={state} /> : null}
@@ -61,7 +78,7 @@ function sectionTitle(section: SettingsSection): string {
 }
 
 function sectionDescription(section: SettingsSection): string {
-  if (section === "appearance") return "Theme mode, color presets, and window chrome.";
+  if (section === "appearance") return "Theme mode, color presets, fonts, and window chrome.";
   if (section === "models") return "Choose the default Grok model and reasoning effort for new threads.";
   if (section === "providers") return "Connect the Grok CLI the same way pi-gui connects model providers.";
   return "Grok CLI, auth, and workspace used by this desktop shell.";
