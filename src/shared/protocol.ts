@@ -277,6 +277,7 @@ export type SlashOption = {
 };
 
 export type AppSnapshot = {
+  instanceId: string;
   connected: boolean;
   grokBin: string | null;
   grokVersion: string | null;

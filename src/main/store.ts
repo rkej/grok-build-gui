@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
@@ -49,7 +50,7 @@ import { loadGuiState, saveGuiState } from "./gui-state.js";
 import { pickAllowOption, shouldAutoApprove } from "./permissions.js";
 import { parseExtensionDialog } from "./extension-ui.js";
 import { sessionDir } from "./paths.js";
-import { activityFromLive, parseModels, sessionTitle } from "./session-meta.js";
+import { parseModels, resolveSessionActivity, sessionTitle } from "./session-meta.js";
 import { childSessionStub, listSubagentChildren, parentIdFromDisk, parentIdFromSessionRow } from "./session-parent.js";
 import { isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
 import { MAX_LOADED_TOOL_PAYLOADS } from "../shared/loaded-tool-cache.js";
@@ -81,6 +82,7 @@ const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
  * remains the source of truth.
  */
 export class AppStore extends EventEmitter {
+  readonly instanceId = randomUUID();
   readonly client = new GrokAcpClient();
   readonly agentTerminals = new AgentTerminalManager();
   gui = loadGuiState();
@@ -148,6 +150,7 @@ export class AppStore extends EventEmitter {
 
   snapshot(): AppSnapshot {
     return {
+      instanceId: this.instanceId,
       connected: this.connected,
       grokBin: this.client.grokBin,
       grokVersion: this.grokVersion,
@@ -173,7 +176,7 @@ export class AppStore extends EventEmitter {
       usage: this.usage,
       accountUsage: this.accountUsage,
       queue: this.queue,
-      running: Boolean(this.activeSessionId && (this.running || this.inFlightPrompts.has(this.activeSessionId))),
+      running: Boolean(this.activeSessionId && (this.running || this.isSessionWorking(this.activeSessionId))),
       git: this.git,
       worktrees: this.worktrees,
       mcp: this.mcp,
@@ -265,12 +268,23 @@ export class AppStore extends EventEmitter {
     this.remoteQueue = [];
     this.syncQueue();
     this.error = null;
-    this.running = this.inFlightPrompts.has(sessionId);
+    this.running = this.isSessionWorking(sessionId);
     this.rebuildTranscriptIndexes();
     this.adoptPermissions(sessionId);
     this.emitTranscriptChange();
     this.bump();
     return epoch;
+  }
+
+  private isSessionWorking(sessionId: string): boolean {
+    const listed = this.sessions.find((session) => session.sessionId === sessionId);
+    const live = this.liveById.get(sessionId);
+    return resolveSessionActivity(listed, live, this.inFlightPrompts.has(sessionId)) === "working";
+  }
+
+  private markSessionActivity(sessionId: string, activity: SessionSummary["activity"]): void {
+    this.liveById.set(sessionId, { ...(this.liveById.get(sessionId) ?? {}), activity });
+    this.sessions = this.sessions.map((session) => session.sessionId === sessionId ? { ...session, activity } : session);
   }
 
   private adoptPermissions(sessionId: string): void {
@@ -376,7 +390,7 @@ export class AppStore extends EventEmitter {
           updatedAt: s.updatedAt ?? s.lastActiveAt ?? "",
           lastActiveAt: s.lastActiveAt,
           numMessages: s.numMessages ?? 0,
-          activity: activityFromLive(l),
+          activity: resolveSessionActivity(s, l, this.inFlightPrompts.has(id)),
           yolo: l?.yolo,
           reasoningEffort: l?.reasoningEffort ?? s.reasoningEffort,
           isWorktree: l?.isWorktree ?? false,
@@ -580,6 +594,7 @@ export class AppStore extends EventEmitter {
     attachments: readonly ComposerAttachment[] = [],
   ): Promise<void> {
     this.inFlightPrompts.add(sessionId);
+    this.markSessionActivity(sessionId, "working");
     this.plan = null;
     this.transcript.items.push({ id: this.nextId("u"), kind: "user", text, at: Date.now(), attachments: attachments.length ? [...attachments] : undefined });
     this.transcript.assistantIndex = null;
@@ -602,6 +617,7 @@ export class AppStore extends EventEmitter {
       }
     } finally {
       this.inFlightPrompts.delete(sessionId);
+      this.markSessionActivity(sessionId, failed ? "failed" : "completed");
       const cancelled = this.cancelledPrompts.delete(sessionId);
       const stillQueued = this.activeSessionId === sessionId && this.localQueue.length > 0;
       if (!cancelled && !stillQueued) this.emitRunFinished(sessionId, !failed);
@@ -712,6 +728,7 @@ export class AppStore extends EventEmitter {
     this.cancelledPrompts.add(this.activeSessionId);
     this.client.notify(AcpMethod.SessionCancel, { sessionId: this.activeSessionId });
     this.inFlightPrompts.delete(this.activeSessionId);
+    this.markSessionActivity(this.activeSessionId, "completed");
     this.localQueue = [];
     this.syncQueue();
     this.running = false;
@@ -1390,7 +1407,7 @@ export class AppStore extends EventEmitter {
     this.models = parseModels(meta.modelState?.availableModels);
     this.currentModelId = meta.modelState?.currentModelId ?? this.models[0]?.modelId ?? "";
     this.effort = this.models.find((m) => m.modelId === this.currentModelId)?.reasoningEffort ?? "high";
-    this.commands = asArray(meta.availableCommands);
+    this.commands = parseSlashCommands(meta.availableCommands);
   }
 
   private async applyCachedAuth(): Promise<boolean> {
@@ -1573,7 +1590,10 @@ export class AppStore extends EventEmitter {
         this.effort = update.reasoning_effort ?? this.effort;
       }
       if (update.sessionUpdate === "turn_completed" || update.sessionUpdate === "response_completed") {
-        if (this.activeSessionId) this.inFlightPrompts.delete(this.activeSessionId);
+        if (this.activeSessionId) {
+          this.inFlightPrompts.delete(this.activeSessionId);
+          this.markSessionActivity(this.activeSessionId, "completed");
+        }
         this.running = false;
         if (update.usage) {
           this.usage = parseContextUsage({
@@ -1690,7 +1710,10 @@ export class AppStore extends EventEmitter {
       },
       onMode: (modeId) => this.applyCurrentModeUpdate(modeId),
       onTurnComplete: () => {
-        if (this.activeSessionId) this.inFlightPrompts.delete(this.activeSessionId);
+        if (this.activeSessionId) {
+          this.inFlightPrompts.delete(this.activeSessionId);
+          this.markSessionActivity(this.activeSessionId, "completed");
+        }
         this.running = false;
       },
     });

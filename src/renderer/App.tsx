@@ -25,6 +25,7 @@ import { useRunningLabel } from "./use-running-label";
 import { useThreadSearch } from "./use-thread-search";
 import { useTimelineScroll } from "./use-timeline-scroll";
 import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
+import { shouldApplySnapshot } from "../shared/snapshot-order";
 import { composerEscapeAction, moveSelectionIndex, mentionCandidatePath } from "./composer-navigation";
 import { moveSlashSelection, slashCommandKey, slashMenuItems, slashTabCompletion } from "./slash-completion";
 
@@ -68,10 +69,15 @@ export default function App() {
   const selectorRef = useRef<HTMLSpanElement | null>(null);
   const mentionTimer = useRef<number | null>(null);
   const stateRevRef = useRef(-1);
+  const stateInstanceRef = useRef<string | null>(null);
   const api = window.grokApp;
 
   const applyStateSnapshot = useCallback((snapshot: AppSnapshot) => {
-    if (snapshot.rev < stateRevRef.current) return;
+    if (!shouldApplySnapshot(
+      { instanceId: stateInstanceRef.current, rev: stateRevRef.current },
+      { instanceId: snapshot.instanceId, rev: snapshot.rev },
+    )) return;
+    stateInstanceRef.current = snapshot.instanceId;
     stateRevRef.current = snapshot.rev;
     setState(snapshot);
   }, []);
