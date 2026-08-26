@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in the desktop UI is wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Git commit, or `npm run dev` from which branch.
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 15 / Ubuntu 24.04
+  - type: input
+    id: grok
+    attributes:
+      label: Grok CLI version
+      description: Output of `grok --version`

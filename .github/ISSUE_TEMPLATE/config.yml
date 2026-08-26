@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Grok CLI / harness issues
+    url: https://docs.x.ai/build/overview
+    about: Bugs in grok agent itself belong with the Grok CLI, not this UI shell.

@@ -1,0 +1,18 @@
+name: Feature request
+description: A change to the desktop UI, not to the Grok harness
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or missing in the GUI today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Keep it small. This repo is a UI shell — harness features belong in Grok CLI.
+    validations:
+      required: true

@@ -1,0 +1,284 @@
+import type { AppSnapshot, ThemeMode, ThemePresetId } from "../shared/protocol";
+import { permissionLabel } from "./composer-panel";
+import { themePresets } from "./theme-presets";
+
+export type SettingsSection = "general" | "appearance" | "models" | "providers";
+
+export const SETTINGS_NAV = [
+  { id: "general", label: "General" },
+  { id: "appearance", label: "Appearance" },
+  { id: "models", label: "Models" },
+  { id: "providers", label: "Providers" },
+] as const;
+
+export function SettingsView({
+  state,
+  section,
+  onSetThemeMode,
+  onSetThemePreset,
+  onSetTransparency,
+}: {
+  readonly state: AppSnapshot;
+  readonly section: SettingsSection;
+  readonly onSetThemeMode: (mode: ThemeMode) => void;
+  readonly onSetThemePreset: (id: ThemePresetId) => void;
+  readonly onSetTransparency: (enabled: boolean) => void;
+}) {
+  return (
+    <section className="canvas">
+      <div className="conversation settings-view">
+        <header className="view-header">
+          <div>
+            <h1 className="view-header__title">{sectionTitle(section)}</h1>
+            <p className="view-header__body">{sectionDescription(section)}</p>
+          </div>
+        </header>
+        <div className="settings-grid">
+          {section === "general" ? <GeneralSection state={state} /> : null}
+          {section === "appearance" ? (
+            <AppearanceSection
+              themeMode={state.gui.themeMode ?? "system"}
+              themePresetId={state.gui.themePresetId ?? "default"}
+              enableTransparency={Boolean(state.gui.enableTransparency)}
+              onSetThemeMode={onSetThemeMode}
+              onSetThemePreset={onSetThemePreset}
+              onSetTransparency={onSetTransparency}
+            />
+          ) : null}
+          {section === "models" ? <ModelsSection state={state} /> : null}
+          {section === "providers" ? <ProvidersSection state={state} /> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function sectionTitle(section: SettingsSection): string {
+  if (section === "appearance") return "Appearance";
+  if (section === "models") return "Models";
+  if (section === "providers") return "Providers";
+  return "General";
+}
+
+function sectionDescription(section: SettingsSection): string {
+  if (section === "appearance") return "Theme mode, color presets, and window chrome.";
+  if (section === "models") return "Choose the default Grok model and reasoning effort for new threads.";
+  if (section === "providers") return "Connect the Grok CLI the same way pi-gui connects model providers.";
+  return "Grok CLI, auth, and workspace used by this desktop shell.";
+}
+
+function GeneralSection({ state }: { readonly state: AppSnapshot }) {
+  return (
+    <div className="settings-section">
+      <div className="settings-group">
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Binary</div>
+            <div className="settings-row__description">The grok agent executable this shell talks to.</div>
+          </div>
+          <div className="settings-row__value">{state.grokBin ?? "not found"}</div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Version</div>
+          </div>
+          <div className="settings-row__value">{state.grokVersion ?? "unknown"}</div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Workspace</div>
+          </div>
+          <div className="settings-row__value">{state.cwd || "No folder open"}</div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Permission</div>
+            <div className="settings-row__description">How tool calls are approved in this session.</div>
+          </div>
+          <div className="settings-row__value">{permissionLabel(state.permissionMode)}</div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Connection</div>
+          </div>
+          <div className="settings-row__value">{state.connected ? "ACP live" : "disconnected"}</div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Open folder</div>
+            <div className="settings-row__description">Change the workspace used for new threads.</div>
+          </div>
+          <div className="settings-row__actions">
+            <button className="button button--secondary" type="button" onClick={() => void window.grokApp.pickFolder()}>
+              Open folder
+            </button>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Notify when a run finishes</div>
+            <div className="settings-row__description">Show an OS notification after an agent turn completes in the background.</div>
+          </div>
+          <label className="settings-toggle settings-toggle--inline">
+            <input
+              type="checkbox"
+              checked={state.gui.notifyOnComplete !== false}
+              onChange={(event) => void window.grokApp.setGui({ notifyOnComplete: event.target.checked })}
+            />
+            <span>Enable</span>
+          </label>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Notify when a run fails</div>
+            <div className="settings-row__description">Show an OS notification if the agent errors while the window is unfocused.</div>
+          </div>
+          <label className="settings-toggle settings-toggle--inline">
+            <input
+              type="checkbox"
+              checked={state.gui.notifyOnFailure !== false}
+              onChange={(event) => void window.grokApp.setGui({ notifyOnFailure: event.target.checked })}
+            />
+            <span>Enable</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppearanceSection({
+  themeMode,
+  themePresetId,
+  enableTransparency,
+  onSetThemeMode,
+  onSetThemePreset,
+  onSetTransparency,
+}: {
+  readonly themeMode: ThemeMode;
+  readonly themePresetId: ThemePresetId;
+  readonly enableTransparency: boolean;
+  readonly onSetThemeMode: (mode: ThemeMode) => void;
+  readonly onSetThemePreset: (id: ThemePresetId) => void;
+  readonly onSetTransparency: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="settings-section">
+      <div className="settings-group">
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Theme</div>
+            <div className="settings-row__description">Follow the system or lock light or dark.</div>
+          </div>
+          <div className="settings-pill-row">
+            {(["system", "light", "dark"] as const).map((mode) => (
+              <button
+                key={mode}
+                className={`settings-pill ${themeMode === mode ? "settings-pill--active" : ""}`}
+                type="button"
+                onClick={() => onSetThemeMode(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Transparency</div>
+            <div className="settings-row__description">Blur the sidebar and composer against the desktop.</div>
+          </div>
+          <label className="settings-toggle settings-toggle--inline">
+            <input type="checkbox" checked={enableTransparency} onChange={(e) => onSetTransparency(e.target.checked)} />
+            <span>Enable</span>
+          </label>
+        </div>
+      </div>
+      <div className="settings-group">
+        <div className="theme-preset-grid">
+          {themePresets.map((preset) => (
+            <label
+              key={preset.id}
+              className={`theme-preset-card ${themePresetId === preset.id ? "theme-preset-card--active" : ""}`}
+            >
+              <input
+                type="radio"
+                name="theme-preset"
+                checked={themePresetId === preset.id}
+                onChange={() => onSetThemePreset(preset.id)}
+              />
+              <span className="theme-preset-card__preview">
+                {preset.swatches.slice(0, 4).map((color) => (
+                  <span key={color} className="theme-preset-card__swatch" style={{ background: color }} />
+                ))}
+              </span>
+              <span className="theme-preset-card__body">
+                <span className="theme-preset-card__title">{preset.name}</span>
+                <span className="theme-preset-card__description">{preset.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModelsSection({ state }: { readonly state: AppSnapshot }) {
+  return (
+    <div className="settings-section">
+      <div className="settings-group">
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Current model</div>
+            <div className="settings-row__description">Used for the active thread and new sessions.</div>
+          </div>
+          <div className="settings-row__value">{state.currentModelId || "none"}</div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Thinking level</div>
+          </div>
+          <div className="settings-row__value">{state.effort}</div>
+        </div>
+      </div>
+      <div className="settings-option-list">
+        {state.models.map((model) => (
+          <button
+            key={model.modelId}
+            className={`settings-option ${model.modelId === state.currentModelId ? "settings-option--active" : ""}`}
+            type="button"
+            onClick={() => void window.grokApp.setModel(model.modelId)}
+          >
+            <span className="settings-option__title">{model.name}</span>
+            <span className="settings-option__meta">{model.description ?? model.modelId}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProvidersSection({ state }: { readonly state: AppSnapshot }) {
+  return (
+    <div className="settings-section">
+      <div className="settings-group">
+        <div className="settings-row">
+          <div className="settings-row__label">
+            <div className="settings-row__title">Grok</div>
+            <div className="settings-row__description">
+              {state.auth.authenticated
+                ? state.auth.email ?? "Signed in"
+                : "Sign in with the Grok CLI so this shell can run sessions."}
+            </div>
+          </div>
+          <div className="settings-row__actions">
+            <button className="button button--primary" type="button" onClick={() => void window.grokApp.login()}>
+              {state.auth.authenticated ? "Re-authenticate" : "Login"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

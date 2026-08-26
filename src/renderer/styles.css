@@ -1,0 +1,119 @@
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/sidebar.css";
+@import "./styles/topbar.css";
+@import "./styles/model-selector-panel.css";
+@import "./styles/new-thread.css";
+@import "./styles/main.css";
+@import "./styles/timeline.css";
+@import "./styles/syntax-highlight.css";
+
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; margin: 16px 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.stack-list { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
+.stack-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.plan-list { margin: 0; padding-left: 18px; }
+
+.usage-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  color: var(--muted-soft);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-meter__bar {
+  width: 44px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+.usage-meter__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.terminal-panel__screen {
+  min-height: 0;
+  height: 100%;
+  padding: 10px 12px 14px;
+  overflow: hidden;
+  background: #0f1117;
+  outline: none;
+}
+
+.terminal-panel__screen:focus {
+  box-shadow: inset 0 0 0 1px #343b4c;
+}
+
+.terminal-panel__screen .xterm {
+  height: 100%;
+}
+
+.terminal-panel__screen .xterm-viewport {
+  background: #0f1117 !important;
+  scrollbar-color: #39445a #0f1117;
+}
+
+.permission-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--accent-tint-border);
+  background: var(--accent-tint-bg);
+}
+
+.permission-card__title {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.permission-card__body {
+  color: var(--muted-strong);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.permission-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.terminal-panel__placeholder {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 8px;
+  min-height: 180px;
+  padding: 24px 18px;
+  color: #aeb6c6;
+}
+
+.terminal-panel__placeholder h2 {
+  margin: 0;
+  color: #f2f4f8;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.terminal-panel__placeholder p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.terminal-panel__placeholder code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #d7dae0;
+}
