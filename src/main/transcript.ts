@@ -1,6 +1,5 @@
 import { extractTodosFromTool, isPlanTool, mergePlanEntries, parsePlanEntries } from "../shared/plan.js";
 import type { PlanEntry, SlashCommand, ToolCallState, TranscriptItem } from "../shared/protocol.js";
-import { asArray } from "../shared/acp-util.js";
 import { parseSlashCommands } from "./session-meta.js";
 
 /**
