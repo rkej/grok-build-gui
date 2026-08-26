@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { AppSnapshot, AppView, ComposerAttachment, SlashOption, ThemeMode, ThemePresetId, ToolCallState, TranscriptItem, TranscriptSnapshot } from "../shared/protocol";
+import type { AppSnapshot, AppView, ComposerAttachment, RewindPoint, SlashOption, ThemeMode, ThemePresetId, ToolCallState, TranscriptItem, TranscriptSnapshot } from "../shared/protocol";
+import { composerDraftKey } from "../shared/composer-drafts";
 import { ComposerPanel, type ComposerMenu } from "./composer-panel";
 import { ConversationTimeline } from "./conversation-timeline";
 import { DiffPanel } from "./diff-panel";
@@ -16,6 +17,7 @@ import { groupSessionsByWorkspace, pinnedThreads } from "./workspace-groups";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { SkillsView } from "./skills-view";
 import { TerminalPanel } from "./terminal-panel";
+import { TreeModal } from "./tree-modal";
 import { applyThemePresetToRoot } from "./theme-presets";
 import { PlanStrip } from "./plan-card";
 import { sessionDisplayTitle, Topbar } from "./topbar";
@@ -53,6 +55,13 @@ export default function App() {
   const [environmentMenuOpen, setEnvironmentMenuOpen] = useState(false);
   const [environment, setEnvironment] = useState<"local" | "worktree">("local");
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingWorkspace, setRenamingWorkspace] = useState<string | null>(null);
+  const [treeOpen, setTreeOpen] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [treeSubmitting, setTreeSubmitting] = useState(false);
+  const [treeError, setTreeError] = useState<string | undefined>();
+  const [treePoints, setTreePoints] = useState<RewindPoint[]>([]);
+  const [liveTerminalHeight, setLiveTerminalHeight] = useState<number | null>(null);
   const [slashOptions, setSlashOptions] = useState<SlashOption[]>([]);
   const [slashOptionTitle, setSlashOptionTitle] = useState("");
   const [selectedSlashOption, setSelectedSlashOption] = useState("");
@@ -66,6 +75,12 @@ export default function App() {
   const [editingQueuedMessageId, setEditingQueuedMessageId] = useState<string | null>(null);
   const queuedEditRestore = useRef<{ draft: string; attachments: ComposerAttachment[] } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const draftKeyRef = useRef("");
+  const draftsRef = useRef<Record<string, string>>({});
+  const draftValueRef = useRef("");
+  const draftTimer = useRef<number | null>(null);
+  const draftsSeeded = useRef(false);
+  const heightTimer = useRef<number | null>(null);
   const paneRef = useRef<HTMLDivElement | null>(null);
   const selectorRef = useRef<HTMLSpanElement | null>(null);
   const mentionTimer = useRef<number | null>(null);
@@ -168,6 +183,7 @@ export default function App() {
       if (!(target instanceof Element) || !target.closest(".environment-picker")) setEnvironmentMenuOpen(false);
       if (!(target instanceof Element) || !target.closest(".workspace-row__menu-wrap")) setWorkspaceMenu(null);
       if (!(target instanceof Element) || !target.closest(".session-row")) setThreadMenu(null);
+      if (!(target instanceof Element) || !target.closest(".workspace-rename")) setRenamingWorkspace(null);
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -175,6 +191,7 @@ export default function App() {
         setEnvironmentMenuOpen(false);
         setWorkspaceMenu(null);
         setThreadMenu(null);
+        setRenamingWorkspace(null);
       }
     };
     document.addEventListener("mousedown", onDown);
@@ -230,8 +247,11 @@ export default function App() {
       }
       if (event.key.toLowerCase() === "n" && !event.shiftKey) {
         event.preventDefault();
+        if ((state?.gui.workspaces ?? []).length === 0) {
+          void api.pickFolder();
+          return;
+        }
         setView("new-thread");
-        setDraft("");
         window.setTimeout(() => composerRef.current?.focus(), 0);
         return;
       }
