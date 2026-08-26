@@ -223,49 +223,39 @@ export function ComposerPanel({
             ) : null}
             {slashOpen ? (
               <div className="slash-menu" data-testid="slash-menu">
-                {runtimeItems.length > 0 ? (
-                  <div className="slash-menu__section">
-                    <div className="slash-menu__section-title slash-menu__section-title--runtime">
-                      <span className="slash-menu__section-icon"><SparkIcon /></span>
-                      <span>Skills & commands</span>
-                    </div>
-                    {runtimeItems.slice(0, 8).map((command) => (
-                      <button
-                        key={`runtime:${command.name}`}
-                        className={`slash-menu__item slash-menu__item--skill ${selectedSlashCommand === slashCommandKey(command) ? "slash-menu__item--active" : ""}`}
-                        type="button"
-                        onClick={() => onPickSlash(command.name)}
-                      >
-                        <span className="slash-menu__icon"><SkillIcon /></span>
-                        <span className="slash-menu__content slash-menu__content--skill">
-                          <span className="slash-menu__line">
-                            <span className="slash-menu__title">{command.title}</span>
-                            <span className="slash-menu__skill-badge">skill</span>
-                          </span>
-                          <span className="slash-menu__description">{command.description}</span>
-                          <span className="slash-menu__command slash-menu__command--skill">/{command.name}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
                 <div className="slash-menu__section">
                   <div className="slash-menu__section-title slash-menu__section-title--host">
-                    <span className="slash-menu__section-icon"><SettingsIcon /></span>
-                    <span>App commands</span>
+                    <span className="slash-menu__section-icon"><SparkIcon /></span>
+                    <span>Commands</span>
                   </div>
-                  {hostItems.map((command) => (
-                    <button key={command.name} className={`slash-menu__item ${selectedSlashCommand === slashCommandKey(command) ? "slash-menu__item--active" : ""}`} type="button" onClick={() => onPickSlash(command.name)}>
-                      <span className="slash-menu__icon">{slashIcon(command.name)}</span>
-                      <span className="slash-menu__content">
-                        <span className="slash-menu__line">
-                          <span className="slash-menu__title">{command.title}</span>
-                          <span className="slash-menu__command">/{command.name}</span>
-                        </span>
-                        <span className="slash-menu__description">{command.description}</span>
-                      </span>
-                    </button>
-                  ))}
+                  {slashItems.length === 0 ? (
+                    <div className="slash-menu__empty">
+                      <div className="slash-menu__empty-title">No matching commands</div>
+                      <div className="slash-menu__empty-description">Grok has not advertised a command with this name.</div>
+                    </div>
+                  ) : (
+                    slashItems.map((command) => {
+                      const skill = command.section === "runtime";
+                      return (
+                        <button
+                          key={slashCommandKey(command)}
+                          className={`slash-menu__item ${skill ? "slash-menu__item--skill" : ""} ${selectedSlashCommand === slashCommandKey(command) ? "slash-menu__item--active" : ""}`}
+                          type="button"
+                          onClick={() => onPickSlash(command.name)}
+                        >
+                          <span className="slash-menu__icon">{skill ? <SkillIcon /> : slashIcon(command.name)}</span>
+                          <span className={`slash-menu__content ${skill ? "slash-menu__content--skill" : ""}`}>
+                            <span className="slash-menu__line">
+                              <span className="slash-menu__title">{command.title}</span>
+                              {skill ? <span className="slash-menu__skill-badge">skill</span> : <span className="slash-menu__command">/{command.name}</span>}
+                            </span>
+                            <span className="slash-menu__description">{command.description}</span>
+                            {skill ? <span className="slash-menu__command slash-menu__command--skill">/{command.name}</span> : null}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             ) : null}
