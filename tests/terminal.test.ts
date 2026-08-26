@@ -57,11 +57,13 @@ test("TerminalHost prefers a PTY when spawn is available", () => {
   onData?.("hello");
   host.write("ls\n");
   onExit?.({ exitCode: 0 });
-  host.stop();
-
   assert.deepEqual(chunks, ["hello"]);
   assert.deepEqual(writes, ["ls\n"]);
   assert.deepEqual(exits, [0]);
+  assert.equal(host.usingPty, false);
+
+  host.start("/tmp/workspace", () => {}, () => {}, { cols: 100, rows: 30 });
+  host.stop();
   assert.equal(killed, true);
   assert.equal(host.usingPty, false);
 });
