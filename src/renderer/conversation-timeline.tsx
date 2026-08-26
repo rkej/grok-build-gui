@@ -146,7 +146,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   return (
-    <div className="conversation conversation--thread">
+    <div className="conversation-timeline">
       {error ? <div className="error-banner">{error}</div> : null}
       <div className="timeline-surface">
         <div

@@ -16,6 +16,9 @@ import { TerminalPanel } from "./terminal-panel";
 import { applyThemePresetToRoot } from "./theme-presets";
 import { PlanStrip } from "./plan-card";
 import { sessionDisplayTitle, Topbar } from "./topbar";
+import { isEventInsideTerminal } from "./app-shell-utils";
+import { formatRelativeTime } from "./string-utils";
+import { useRunningLabel } from "./use-running-label";
 import { useThreadSearch } from "./use-thread-search";
 import { useTimelineScroll } from "./use-timeline-scroll";
 import { putLoadedToolRecord } from "../shared/loaded-tool-cache";
@@ -157,25 +160,38 @@ export default function App() {
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
       const meta = event.metaKey || event.ctrlKey;
-      if (meta && event.key.toLowerCase() === "b") {
+      if (!meta) return;
+      const inTerminal = isEventInsideTerminal(event);
+      if (inTerminal && event.key.toLowerCase() !== "j") return;
+      if (event.key === "," && !event.shiftKey) {
+        event.preventDefault();
+        setView("settings");
+        setSettingsSection("general");
+        return;
+      }
+      if (event.key.toLowerCase() === "b" && !event.shiftKey) {
         event.preventDefault();
         if (state) void api.setGui({ sidebarCollapsed: !state.gui.sidebarCollapsed });
+        return;
       }
-      if (meta && event.key.toLowerCase() === "n") {
+      if (event.key.toLowerCase() === "n" && !event.shiftKey) {
         event.preventDefault();
         setView("new-thread");
         setDraft("");
         window.setTimeout(() => composerRef.current?.focus(), 0);
+        return;
       }
-      if (meta && event.key.toLowerCase() === "d") {
+      if (event.key.toLowerCase() === "d" && !event.shiftKey) {
         event.preventDefault();
-        if (state) void api.setGui({ showReview: !state.gui.showReview });
+        if (state) void api.setGui({ showReview: !state.gui.showReview, showFiles: false });
+        return;
       }
-      if (meta && event.key.toLowerCase() === "j") {
+      if (event.key.toLowerCase() === "j" && !event.shiftKey) {
         event.preventDefault();
         if (state) void api.setGui({ showTerminal: !state.gui.showTerminal });
+        return;
       }
-      if (meta && event.shiftKey && event.key.toLowerCase() === "r") {
+      if (event.shiftKey && event.key.toLowerCase() === "r") {
         event.preventDefault();
         if (state?.activeSessionId) setRenamingId(state.activeSessionId);
       }
@@ -552,15 +568,22 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     const unsub = api.onFindInThread(toggleFind);
+    const unsubSettings = api.onOpenSettings(() => {
+      setView("settings");
+      setSettingsSection("general");
+    });
     return () => {
       window.removeEventListener("keydown", onKey);
       unsub();
+      unsubSettings();
     };
   }, [api, threadSearch, view]);
 
   useEffect(() => {
     if (threadSearch.isOpen) threadSearch.close();
   }, [state?.activeSessionId]);
+
+  const runningLabel = useRunningLabel(Boolean(state?.running));
 
   if (!state) {
     return (
@@ -775,6 +798,7 @@ export default function App() {
           onToggleFiles={() => persistGui({ showFiles: !showFiles, showReview: false })}
           promptRailVisible={showPromptRail}
           onTogglePromptRail={() => persistGui({ showPromptRail: !showPromptRail })}
+          panelsAvailable={view === "threads" && Boolean(state.activeSessionId)}
         />
 
         {view === "new-thread" && (
@@ -815,37 +839,79 @@ export default function App() {
           />
         )}
 
-        {view === "threads" && (
+        {view === "threads" && !state.cwd ? (
+          <section className="canvas canvas--empty">
+            <div className="empty-panel">
+              <div className="session-header__eyebrow">Workspace</div>
+              <h1>Open a folder to start</h1>
+              <p>Add a project folder, then create a thread. Sessions stay grouped under that folder in the sidebar.</p>
+              <div className="empty-panel__actions">
+                <button className="button button--primary" type="button" onClick={() => void api.pickFolder()}>
+                  Open folder
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : view === "threads" && !active ? (
+          <section className="canvas canvas--empty">
+            <div className="empty-panel">
+              <div className="session-header__eyebrow">Workspace</div>
+              <h1>{cwdName(state.cwd)}</h1>
+              <p>Create a thread for this folder, then jump between sessions from the sidebar.</p>
+              <div className="empty-panel__actions">
+                <button className="button button--primary" type="button" onClick={openNewThread}>
+                  New thread
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : view === "threads" && active ? (
           <>
             <div className="canvas canvas--thread">
-              <ConversationTimeline
-                key={state.activeSessionId ?? "none"}
-                items={activeTranscript}
-                running={state.running}
-                error={state.error}
-                paneRef={paneRef}
-                expandedTools={expandedTools}
-                promptRailVisible={showPromptRail}
-                showThoughts={state.gui.showThoughts}
-                loadingTools={loadingToolContent}
-                loadedToolContent={loadedToolContent}
-                transcriptLoading={Boolean(state.activeSessionId && transcript.sessionId !== state.activeSessionId)}
-                threadSearch={threadSearch}
-                onToggleTool={onToggleTool}
-                onViewFileInDiff={onViewFileInDiff}
-                onFork={state.running ? undefined : onFork}
-                onTimelineScroll={timelineScroll.handleTimelineScroll}
-                onTimelineScrollIntent={timelineScroll.handleTimelineScrollIntent}
-                onContentHeightChange={timelineScroll.handleContentHeightChange}
-                showJumpToLatest={timelineScroll.showJumpToLatest}
-                onJumpToLatest={timelineScroll.jumpToLatest}
-              />
+              <div className="conversation conversation--thread">
+                <div className="chat-header">
+                  <div className="chat-header__eyebrow">
+                    {onWorktree
+                      ? `${cwdName(rootCwd)} · ${environmentLabel}`
+                      : `${cwdName(state.cwd)} · Local`}
+                  </div>
+                  <div className="chat-header__row">
+                    <h1 className="chat-header__title">{sessionDisplayTitle(active)}</h1>
+                    <div className="chat-header__status">
+                      {state.running ? runningLabel : formatRelativeTime(active.lastActiveAt ?? active.updatedAt)}
+                    </div>
+                  </div>
+                </div>
+                <ConversationTimeline
+                  key={state.activeSessionId ?? "none"}
+                  items={activeTranscript}
+                  running={state.running}
+                  runningLabel={runningLabel}
+                  error={state.error}
+                  paneRef={paneRef}
+                  expandedTools={expandedTools}
+                  promptRailVisible={showPromptRail}
+                  showThoughts={state.gui.showThoughts}
+                  loadingTools={loadingToolContent}
+                  loadedToolContent={loadedToolContent}
+                  transcriptLoading={Boolean(state.activeSessionId && transcript.sessionId !== state.activeSessionId)}
+                  threadSearch={threadSearch}
+                  onToggleTool={onToggleTool}
+                  onViewFileInDiff={onViewFileInDiff}
+                  onFork={state.running ? undefined : onFork}
+                  onTimelineScroll={timelineScroll.handleTimelineScroll}
+                  onTimelineScrollIntent={timelineScroll.handleTimelineScrollIntent}
+                  onContentHeightChange={timelineScroll.handleContentHeightChange}
+                  showJumpToLatest={timelineScroll.showJumpToLatest}
+                  onJumpToLatest={timelineScroll.jumpToLatest}
+                />
+              </div>
             </div>
             <footer className="composer">
               {composer}
             </footer>
           </>
-        )}
+        ) : null}
 
         {sidePanelMode && view === "threads" ? <DiffPanel state={state} mode={sidePanelMode} focusPath={diffFocusPath} /> : null}
         {showTerminal && view === "threads" ? (

@@ -125,10 +125,14 @@ export type ExtensionUiResponse =
 
 export type AuthState = {
   authenticated: boolean;
+  signingIn?: boolean;
   methodId?: string;
   email?: string;
   teamName?: string | null;
   subscriptionTier?: string;
+  error?: string | null;
+  loginUrl?: string | null;
+  deviceCode?: string | null;
 };
 
 export type ContextUsage = {

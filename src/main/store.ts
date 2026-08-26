@@ -2,12 +2,13 @@ import { EventEmitter } from "node:events";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { GrokAcpClient } from "../acp/client.js";
 import { AcpMethod } from "../acp/methods.js";
 import type { JsonRpcMessage } from "../acp/rpc.js";
 import { asArray, unwrap } from "../shared/acp-util.js";
+import { authFromAuthenticateResult, isAuthError, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
 import type {
   AppSnapshot,
   AccountUsage,
@@ -65,9 +66,11 @@ import {
 } from "./extensions.js";
 import { createSkill, deleteSkill, discoverSkills, setSkillEnabled } from "./skills.js";
 import { AgentTerminalManager } from "./agent-terminals.js";
+import { grokError } from "./grok-cli.js";
 
 const execFileAsync = promisify(execFile);
 const USAGE_POLL_MS = 3 * 60 * 1000;
+const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
  * Main-process application store.
@@ -82,7 +85,10 @@ export class AppStore extends EventEmitter {
   gui = loadGuiState();
   connected = false;
   grokVersion: string | null = null;
-  auth: AuthState = { authenticated: false };
+  auth: AuthState = signedOutAuth();
+  private loginChild: ChildProcess | null = null;
+  private loginPromise: Promise<void> | null = null;
+  private reconnecting = false;
   cwd = process.cwd();
   models: ModelInfo[] = [];
   currentModelId = "";
@@ -321,40 +327,25 @@ export class AppStore extends EventEmitter {
     this.client.on("server-request", (msg) => this.onServerRequest(msg));
     this.client.on("exit", () => {
       this.connected = false;
+      if (this.reconnecting) return;
       this.error = "Grok agent process exited.";
       this.bump();
     });
+    this.client.on("auth-needed", (err) => {
+      this.maybeNoteAuthFailure(err);
+    });
     await this.client.start();
     this.connected = true;
-    const init = this.client.initializeResult;
-    const meta = init?._meta ?? {};
-    this.models = parseModels(meta.modelState?.availableModels);
-    this.currentModelId = meta.modelState?.currentModelId ?? this.models[0]?.modelId ?? "";
-    this.effort = this.models.find((m) => m.modelId === this.currentModelId)?.reasoningEffort ?? "high";
-    this.commands = asArray(meta.availableCommands);
-    try {
-      const auth = unwrap<any>(await this.client.authenticateCached());
-      const m = auth?._meta ?? auth ?? {};
-      this.auth = {
-        authenticated: true,
-        methodId: "cached_token",
-        email: m.email,
-        teamName: m.team_name,
-        subscriptionTier: m.subscription_tier,
-      };
-    } catch {
-      this.auth = { authenticated: false };
+    this.applyInitializeResult(this.client.initializeResult);
+    if (!(await this.applyCachedAuth())) {
+      this.bump();
+      void this.login();
+      await this.refreshGit();
+      await this.refreshCatalogs();
+      this.bump();
+      return;
     }
-    this.accountUsage = loggedWeeklyUsage() ?? this.accountUsage;
-    this.startUsagePolling();
-    await this.refreshSessions();
-    for (const session of this.sessions) {
-      if (session.cwd) this.rememberWorkspace(session.cwd, { front: false });
-    }
-    if (!this.gui.rootCwd && this.cwd) this.gui.rootCwd = this.cwd;
-    saveGuiState(this.gui);
-    await this.refreshGit();
-    await this.refreshCatalogs();
+    await this.hydrateAfterAuth();
     this.bump();
   }
 
