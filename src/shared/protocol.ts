@@ -309,7 +309,7 @@ export type AppSnapshot = {
 };
 
 export type ThemeMode = "system" | "light" | "dark";
-export type ThemePresetId = "default" | "catppuccin" | "tokyo-night" | "nord";
+export type ThemePresetId = "default" | "catppuccin" | "tokyo-night" | "nord" | "ayu";
 
 export type GuiState = {
   sidebarWidth: number;
