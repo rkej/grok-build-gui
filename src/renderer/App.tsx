@@ -854,6 +854,7 @@ export default function App() {
         grokVersion={state.grokVersion}
         bootError={state.error}
         onSignIn={() => void api.login()}
+        onSignInWithApiKey={(key) => void api.loginWithApiKey(key)}
         onOpenUrl={(url) => void api.openExternal(url)}
       />
     );

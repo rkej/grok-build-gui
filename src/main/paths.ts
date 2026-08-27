@@ -17,6 +17,11 @@ export function authPath(): string {
   return path.join(grokHome(), "auth.json");
 }
 
+/** Owner-only file for an API key pasted in this desktop shell. */
+export function guiApiKeyPath(): string {
+  return path.join(grokHome(), "gui-api-key");
+}
+
 export function userConfigPath(): string {
   return path.join(grokHome(), "config.toml");
 }

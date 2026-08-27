@@ -46,6 +46,7 @@ export const ipc = {
   setGui: "gb:set-gui",
   login: "gb:login",
   cancelLogin: "gb:cancel-login",
+  loginWithApiKey: "gb:login-api-key",
   refresh: "gb:refresh",
   openExternal: "gb:open-external",
   openPath: "gb:open-path",

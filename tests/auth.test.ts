@@ -5,6 +5,7 @@ import {
   checkingAuth,
   credentialsPending,
   isAuthError,
+  normalizeApiKey,
   parseGrokLoginOutput,
   signedOutAuth,
 } from "../src/shared/auth.js";
@@ -46,6 +47,12 @@ test("signedOutAuth always clears authenticated", () => {
   assert.equal(auth.checking, false);
   assert.equal(auth.signingIn, true);
   assert.equal(auth.error, "nope");
+});
+
+test("normalizeApiKey trims quotes and Bearer prefixes", () => {
+  assert.equal(normalizeApiKey("  Bearer xai-abc  "), "xai-abc");
+  assert.equal(normalizeApiKey('"xai-abc"'), "xai-abc");
+  assert.equal(normalizeApiKey("   "), "");
 });
 
 test("credentialsPending covers checking and signing-in, not the sign-in form", () => {

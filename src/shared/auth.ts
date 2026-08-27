@@ -73,6 +73,12 @@ export function isAuthError(err: unknown): boolean {
   return false;
 }
 
+export function normalizeApiKey(raw: string): string {
+  let key = raw.trim().replace(/^['"]+|['"]+$/g, "").trim();
+  key = key.replace(/^bearer\s+/i, "").trim();
+  return key;
+}
+
 export function parseGrokLoginOutput(text: string): { url?: string; deviceCode?: string } {
   const urls = [...text.matchAll(/https?:\/\/[^\s<>"')\]]+/gi)].map((match) =>
     match[0].replace(/[.,;:]+$/, ""),

@@ -9,7 +9,8 @@ import { GrokAcpClient } from "../acp/client.js";
 import { AcpMethod } from "../acp/methods.js";
 import type { JsonRpcMessage } from "../acp/rpc.js";
 import { asArray, unwrap } from "../shared/acp-util.js";
-import { authFromAuthenticateResult, checkingAuth, isAuthError, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
+import { authFromAuthenticateResult, checkingAuth, isAuthError, normalizeApiKey, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
+import { applyStoredApiKey, persistApiKey } from "./api-key.js";
 import { rankFileMentions } from "../shared/file-mentions.js";
 import type {
   AppSnapshot,
@@ -393,11 +394,12 @@ export class AppStore extends EventEmitter {
     this.client.on("auth-needed", (err) => {
       this.maybeNoteAuthFailure(err);
     });
+    applyStoredApiKey();
     await this.client.start();
     this.connected = true;
     this.applyInitializeResult(this.client.initializeResult);
     if (!(await this.applyCachedAuth())) {
-      void this.login();
+      this.auth = signedOutAuth();
       await this.refreshGit();
       await this.refreshCatalogs();
       this.bump();
@@ -1416,6 +1418,38 @@ export class AppStore extends EventEmitter {
     this.loginCancelled = true;
     this.loginChild?.kill();
     this.loginChild = null;
+  }
+
+  async loginWithApiKey(raw: string): Promise<void> {
+    const key = normalizeApiKey(raw);
+    if (!key) throw new Error("Paste an API key from console.x.ai.");
+    this.cancelLogin();
+    if (this.loginPromise) await this.loginPromise.catch(() => undefined);
+    try {
+      persistApiKey(key);
+    } catch {
+      // Env is enough for this process; disk persist is best-effort.
+    }
+    process.env.XAI_API_KEY = key;
+    this.auth = {
+      ...this.auth,
+      authenticated: this.auth.authenticated,
+      checking: false,
+      signingIn: true,
+      error: null,
+    };
+    this.bump();
+    try {
+      await this.reconnectAgent();
+      const ok = await this.applyCachedAuth();
+      if (!ok) throw new Error("The agent could not use that API key.");
+      await this.hydrateAfterAuth();
+      this.auth = { ...this.auth, signingIn: false, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : grokError(err);
+      this.auth = signedOutAuth({ error: message });
+    }
+    this.bump();
   }
 
   private async runLogin(): Promise<void> {
