@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { authPath, grokHome } from "./paths.js";
-import { grokAuthScope, type XaiOAuthTokens, XAI_OAUTH_CLIENT_ID, XAI_OAUTH_ISSUER } from "./xai-oauth.js";
+import { grokAuthScope, type XaiOAuthTokens, XAI_OAUTH_CLIENT_ID, XAI_OAUTH_ISSUER } from "./xai-oauth-core.js";
 
 type AuthEntry = {
   key?: string;

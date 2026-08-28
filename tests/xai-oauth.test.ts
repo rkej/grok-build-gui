@@ -12,7 +12,7 @@ import {
   isLoopbackBindError,
   XAI_OAUTH_CLIENT_ID,
   XAI_OAUTH_REDIRECT_URI,
-} from "../src/main/xai-oauth.js";
+} from "../src/main/xai-oauth-core.js";
 
 test("buildAuthorizeUrl uses PKCE S256 and the Grok CLI loopback redirect", () => {
   const url = new URL(buildAuthorizeUrl({ challenge: "abc", state: "st", nonce: "nn" }));
