@@ -1,7 +1,13 @@
 import { execFile } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
+export const GROK_INSTALL_SH = "https://x.ai/cli/install.sh";
+export const GROK_INSTALL_PS1 = "https://x.ai/cli/install.ps1";
 
 export async function runGrok(
   bin: string,
@@ -32,6 +38,48 @@ export async function runGrokJson<T = unknown>(
     return parseLeadingJson<T>(raw);
   } catch {
     return null;
+  }
+}
+
+export function isMissingGrokBinary(err: unknown): boolean {
+  if (err == null) return false;
+  const row = err as { code?: unknown; message?: unknown };
+  if (String(row.code ?? "") === "ENOENT") return true;
+  const message = String(row.message ?? (err instanceof Error ? err.message : err));
+  return /not installed|not found|ENOENT|spawn grok/i.test(message);
+}
+
+export async function installGrokCli(): Promise<void> {
+  const win = process.platform === "win32";
+  const url = win ? GROK_INSTALL_PS1 : GROK_INSTALL_SH;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not download the Grok CLI installer (${res.status}).`);
+  const body = await res.text();
+  if (!body.trim()) throw new Error("The Grok CLI installer was empty.");
+  const dir = mkdtempSync(path.join(os.tmpdir(), "grok-cli-install-"));
+  const file = path.join(dir, win ? "install.ps1" : "install.sh");
+  writeFileSync(file, body, { encoding: "utf8", mode: 0o700 });
+  try {
+    if (win) {
+      await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file], {
+        timeout: INSTALL_TIMEOUT_MS,
+        maxBuffer: 16 * 1024 * 1024,
+        windowsHide: true,
+      });
+    } else {
+      await execFileAsync("bash", [file], {
+        timeout: INSTALL_TIMEOUT_MS,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+    }
+  } catch (err) {
+    throw new Error(grokError(err) || "Grok CLI install failed.");
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // ignore temp cleanup
+    }
   }
 }
 

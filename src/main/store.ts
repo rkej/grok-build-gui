@@ -76,7 +76,8 @@ import {
 } from "./extensions.js";
 import { createSkill, deleteSkill, discoverSkills, setSkillEnabled } from "./skills.js";
 import { AgentTerminalManager } from "./agent-terminals.js";
-import { grokError } from "./grok-cli.js";
+import { applyPosixPathDefaults } from "./paths.js";
+import { grokError, installGrokCli, isMissingGrokBinary } from "./grok-cli.js";
 
 const execFileAsync = promisify(execFile);
 const USAGE_POLL_MS = 3 * 60 * 1000;
@@ -95,6 +96,10 @@ export class AppStore extends EventEmitter {
   gui = loadGuiState();
   connected = false;
   grokVersion: string | null = null;
+  cliMissing = false;
+  cliInstalling = false;
+  cliInstallError: string | null = null;
+  private clientHandlersBound = false;
   auth: AuthState = checkingAuth();
   private loginPromise: Promise<void> | null = null;
   private loginAbort: AbortController | null = null;
@@ -160,6 +165,9 @@ export class AppStore extends EventEmitter {
       connected: this.connected,
       grokBin: this.client.grokBin,
       grokVersion: this.grokVersion,
+      cliMissing: this.cliMissing,
+      cliInstalling: this.cliInstalling,
+      cliInstallError: this.cliInstallError,
       auth: this.auth,
       cwd: this.cwd,
       models: this.models,
@@ -379,25 +387,55 @@ export class AppStore extends EventEmitter {
     this.seedWorkspaces();
     if (this.gui.permissionMode) this.permissionMode = this.gui.permissionMode;
     this.yoloArmed = Boolean(this.gui.yoloArmed) || this.gui.permissionMode === "always-approve";
-    try {
-      const { stdout } = await execFileAsync(this.client.grokBin, ["--version"]);
-      this.grokVersion = stdout.trim().split("\n")[0] ?? null;
-    } catch {
-      this.grokVersion = null;
-    }
+    this.bindClientHandlers();
+    applyStoredApiKey();
+    await this.connectAgent();
+  }
+
+  private bindClientHandlers(): void {
+    if (this.clientHandlersBound) return;
+    this.clientHandlersBound = true;
     this.client.on("notification", (msg) => this.onNotification(msg));
     this.client.on("server-request", (msg) => this.onServerRequest(msg));
     this.client.on("exit", () => {
       this.connected = false;
-      if (this.reconnecting) return;
+      if (this.reconnecting || this.cliMissing) return;
       this.error = "Grok agent process exited.";
       this.bump();
     });
     this.client.on("auth-needed", (err) => {
       this.maybeNoteAuthFailure(err);
     });
-    applyStoredApiKey();
-    await this.client.start();
+  }
+
+  async connectAgent(): Promise<void> {
+    applyPosixPathDefaults();
+    this.client.locateBin();
+    if (!this.client.grokBin) {
+      this.markCliMissing();
+      return;
+    }
+    this.cliMissing = false;
+    this.cliInstallError = null;
+    try {
+      const { stdout } = await execFileAsync(this.client.grokBin, ["--version"]);
+      this.grokVersion = stdout.trim().split("\n")[0] ?? null;
+    } catch (err) {
+      this.grokVersion = null;
+      if (isMissingGrokBinary(err)) {
+        this.markCliMissing();
+        return;
+      }
+    }
+    try {
+      await this.client.start();
+    } catch (err) {
+      if (isMissingGrokBinary(err)) {
+        this.markCliMissing();
+        return;
+      }
+      throw err;
+    }
     this.connected = true;
     this.applyInitializeResult(this.client.initializeResult);
     if (!(await this.applyCachedAuth())) {
@@ -409,6 +447,43 @@ export class AppStore extends EventEmitter {
     }
     await this.hydrateAfterAuth();
     this.bump();
+  }
+
+  private markCliMissing(): void {
+    this.cliMissing = true;
+    this.connected = false;
+    this.grokVersion = null;
+    if (this.auth.checking || this.auth.signingIn) this.auth = signedOutAuth();
+    this.bump();
+  }
+
+  async installCli(): Promise<void> {
+    if (this.cliInstalling) return;
+    this.cliInstalling = true;
+    this.cliInstallError = null;
+    this.bump();
+    try {
+      await installGrokCli();
+      applyPosixPathDefaults();
+      this.client.locateBin();
+      if (!this.client.grokBin) {
+        throw new Error("Installer finished, but grok was not found in ~/.grok/bin.");
+      }
+      this.cliInstalling = false;
+      await this.connectAgent();
+    } catch (err) {
+      this.cliInstalling = false;
+      this.cliInstallError = err instanceof Error ? err.message : grokError(err);
+      this.cliMissing = true;
+      this.bump();
+    }
+  }
+
+  async retryCli(): Promise<void> {
+    this.cliInstallError = null;
+    this.auth = checkingAuth();
+    this.bump();
+    await this.connectAgent();
   }
 
   async refreshSessions(): Promise<void> {

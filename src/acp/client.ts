@@ -10,29 +10,67 @@ export type ContentBlock =
   | { type: "resource_link"; uri: string; name?: string; mimeType?: string; _meta?: unknown }
   | Record<string, unknown>;
 
-export function resolveGrokBin(): string {
-  const candidates = [
-    process.env.GROK_BIN,
-    path.join(os.homedir(), ".grok", "bin", "grok"),
-    "/usr/local/bin/grok",
-    "/opt/homebrew/bin/grok",
-  ].filter((x): x is string => Boolean(x));
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
+export function grokBinName(platform = process.platform): string {
+  return platform === "win32" ? "grok.exe" : "grok";
+}
+
+export function grokBinCandidates(
+  env: NodeJS.ProcessEnv = process.env,
+  home = os.homedir(),
+  platform = process.platform,
+): string[] {
+  const name = grokBinName(platform);
+  const extras = [
+    env.GROK_BIN,
+    path.join(home, ".grok", "bin", name),
+    platform === "win32" ? undefined : "/usr/local/bin/grok",
+    platform === "win32" ? undefined : "/opt/homebrew/bin/grok",
+  ];
+  const fromPath = (env.PATH ?? "")
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((dir) => path.join(dir, name));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const candidate of [...extras, ...fromPath]) {
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
   }
-  return "grok";
+  return out;
+}
+
+export function resolveGrokBin(
+  env: NodeJS.ProcessEnv = process.env,
+  home = os.homedir(),
+  platform = process.platform,
+  exists: (file: string) => boolean = existsSync,
+): string | null {
+  for (const candidate of grokBinCandidates(env, home, platform)) {
+    if (exists(candidate)) return candidate;
+  }
+  return null;
 }
 
 export class GrokAcpClient extends EventEmitter {
   private proc: ChildProcessWithoutNullStreams | null = null;
   rpc: JsonRpcStream | null = null;
-  grokBin = resolveGrokBin();
+  grokBin: string | null = resolveGrokBin();
   connected = false;
   initializeResult: any = null;
   lastAuthMethodId: string | null = null;
 
+  locateBin(): string | null {
+    this.grokBin = resolveGrokBin();
+    return this.grokBin;
+  }
+
   async start(): Promise<void> {
     if (this.rpc) return;
+    this.locateBin();
+    if (!this.grokBin) {
+      throw Object.assign(new Error("Grok CLI is not installed."), { code: "ENOENT" });
+    }
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       GROK_SANDBOX: process.env.GROK_SANDBOX || "off",
