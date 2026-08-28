@@ -1605,6 +1605,11 @@ export class AppStore extends EventEmitter {
     this.reconnecting = true;
     try {
       this.client.stop();
+      this.client.locateBin();
+      if (!this.client.grokBin) {
+        this.markCliMissing();
+        return;
+      }
       await this.client.start();
       this.connected = true;
       this.applyInitializeResult(this.client.initializeResult);

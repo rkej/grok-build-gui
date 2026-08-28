@@ -38,7 +38,8 @@ transcript, tools, approvals, git changes, MCP, models, and usage.
 ## Requirements
 
 - Node 22+
-- Authenticated Grok CLI (`~/.grok/bin/grok` or `GROK_BIN`)
+- Grok CLI (`~/.grok/bin/grok` or `GROK_BIN`). If it is missing, the app
+  offers to install it.
 - `grok login`, or `XAI_API_KEY`
 
 The packaged app does **not** bundle the Grok CLI. Install and authenticate
