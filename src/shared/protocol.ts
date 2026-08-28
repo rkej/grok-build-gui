@@ -286,8 +286,8 @@ export type AppSnapshot = {
   connected: boolean;
   grokBin: string | null;
   grokVersion: string | null;
+  platform: string;
   cliMissing: boolean;
-  cliInstalling: boolean;
   cliInstallError: string | null;
   auth: AuthState;
   cwd: string;
