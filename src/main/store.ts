@@ -76,7 +76,7 @@ import {
 } from "./extensions.js";
 import { createSkill, deleteSkill, discoverSkills, setSkillEnabled } from "./skills.js";
 import { AgentTerminalManager } from "./agent-terminals.js";
-import { grokError, installGrokCli, isMissingGrokBinary } from "./grok-cli.js";
+import { grokError, isMissingGrokBinary } from "./grok-cli.js";
 
 const execFileAsync = promisify(execFile);
 const USAGE_POLL_MS = 3 * 60 * 1000;
@@ -96,7 +96,6 @@ export class AppStore extends EventEmitter {
   connected = false;
   grokVersion: string | null = null;
   cliMissing = false;
-  cliInstalling = false;
   cliInstallError: string | null = null;
   private clientHandlersBound = false;
   auth: AuthState = checkingAuth();
@@ -164,8 +163,8 @@ export class AppStore extends EventEmitter {
       connected: this.connected,
       grokBin: this.client.grokBin,
       grokVersion: this.grokVersion,
+      platform: process.platform,
       cliMissing: this.cliMissing,
-      cliInstalling: this.cliInstalling,
       cliInstallError: this.cliInstallError,
       auth: this.auth,
       cwd: this.cwd,
