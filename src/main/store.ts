@@ -1807,8 +1807,15 @@ export class AppStore extends EventEmitter {
     }
   }
 
+  private requireGrokBin(): string {
+    const bin = this.client.grokBin;
+    if (!bin) throw new Error("Grok CLI is not installed.");
+    return bin;
+  }
+
   async refreshCatalogs(): Promise<void> {
     const bin = this.client.grokBin;
+    if (!bin) return;
     const cwd = this.cwd;
     const [skills, mcp, plugins] = await Promise.all([
       discoverSkills({ cwd, grokBin: bin }).catch(() => this.skills),
@@ -1841,21 +1848,21 @@ export class AppStore extends EventEmitter {
   }
 
   async addMcp(input: AddMcpInput): Promise<void> {
-    await addMcpServer(this.client.grokBin, this.cwd, input);
+    await addMcpServer(this.requireGrokBin(), this.cwd, input);
     await this.refreshCatalogs();
     if (this.activeSessionId) await this.refreshSessionExtras(this.activeSessionId);
     this.bump();
   }
 
   async setMcpEnabled(name: string, enabled: boolean): Promise<void> {
-    await setMcpEnabled(this.client.grokBin, this.cwd, name, enabled);
+    await setMcpEnabled(this.requireGrokBin(), this.cwd, name, enabled);
     await this.refreshCatalogs();
     if (this.activeSessionId) await this.refreshSessionExtras(this.activeSessionId);
     this.bump();
   }
 
   async removeMcp(name: string, scope?: "user" | "project"): Promise<void> {
-    await removeMcpServer(this.client.grokBin, this.cwd, name, scope);
+    await removeMcpServer(this.requireGrokBin(), this.cwd, name, scope);
     this.mcp = this.mcp.filter((server) => server.name !== name);
     await this.refreshCatalogs();
     if (this.activeSessionId) await this.refreshSessionExtras(this.activeSessionId);
@@ -1863,21 +1870,21 @@ export class AppStore extends EventEmitter {
   }
 
   async installPlugin(source: string, trust: boolean): Promise<void> {
-    await installPlugin(this.client.grokBin, this.cwd, source, trust);
+    await installPlugin(this.requireGrokBin(), this.cwd, source, trust);
     await this.refreshCatalogs();
     if (this.activeSessionId) await this.refreshSessionExtras(this.activeSessionId);
     this.bump();
   }
 
   async setPluginEnabled(name: string, enabled: boolean): Promise<void> {
-    await setPluginEnabled(this.client.grokBin, this.cwd, name, enabled);
+    await setPluginEnabled(this.requireGrokBin(), this.cwd, name, enabled);
     await this.refreshCatalogs();
     if (this.activeSessionId) await this.refreshSessionExtras(this.activeSessionId);
     this.bump();
   }
 
   async uninstallPlugin(name: string): Promise<void> {
-    await uninstallPlugin(this.client.grokBin, this.cwd, name);
+    await uninstallPlugin(this.requireGrokBin(), this.cwd, name);
     this.plugins = this.plugins.filter((plugin) => plugin.name !== name);
     await this.refreshCatalogs();
     if (this.activeSessionId) await this.refreshSessionExtras(this.activeSessionId);
