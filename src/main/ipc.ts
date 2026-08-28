@@ -75,7 +75,6 @@ export function registerIpc({ store, terminal, getWindow, pickFolder }: IpcDeps)
   ipcMain.handle(ipc.login, () => store.login());
   ipcMain.handle(ipc.cancelLogin, () => store.cancelLogin());
   ipcMain.handle(ipc.loginWithApiKey, (_e, key: string) => store.loginWithApiKey(key));
-  ipcMain.handle(ipc.installCli, () => store.installCli());
   ipcMain.handle(ipc.retryCli, () => store.retryCli());
   ipcMain.handle(ipc.refresh, async () => {
     await store.refreshSessions();

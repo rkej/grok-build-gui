@@ -455,28 +455,6 @@ export class AppStore extends EventEmitter {
     this.bump();
   }
 
-  async installCli(): Promise<void> {
-    if (this.cliInstalling) return;
-    this.cliInstalling = true;
-    this.cliInstallError = null;
-    this.bump();
-    try {
-      await installGrokCli();
-      applyPosixPathDefaults();
-      this.client.locateBin();
-      if (!this.client.grokBin) {
-        throw new Error("Installer finished, but grok was not found in ~/.grok/bin.");
-      }
-      this.cliInstalling = false;
-      await this.connectAgent();
-    } catch (err) {
-      this.cliInstalling = false;
-      this.cliInstallError = err instanceof Error ? err.message : grokError(err);
-      this.cliMissing = true;
-      this.bump();
-    }
-  }
-
   async retryCli(): Promise<void> {
     this.cliInstallError = null;
     this.auth = checkingAuth();
