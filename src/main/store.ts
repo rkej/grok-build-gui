@@ -80,7 +80,6 @@ import { grokError } from "./grok-cli.js";
 
 const execFileAsync = promisify(execFile);
 const USAGE_POLL_MS = 3 * 60 * 1000;
-const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
  * Main-process application store.
@@ -1418,9 +1417,7 @@ export class AppStore extends EventEmitter {
   }
 
   cancelLogin(): void {
-    this.loginCancelled = true;
-    this.loginChild?.kill();
-    this.loginChild = null;
+    this.loginAbort?.abort();
   }
 
   async loginWithApiKey(raw: string): Promise<void> {
@@ -1457,30 +1454,44 @@ export class AppStore extends EventEmitter {
 
   private async runLogin(): Promise<void> {
     const reauth = this.auth.authenticated;
-    this.loginCancelled = false;
+    this.loginAbort?.abort();
+    this.loginAbort = new AbortController();
+    const signal = this.loginAbort.signal;
     this.auth = {
       ...this.auth,
       authenticated: reauth,
       checking: false,
       signingIn: true,
       error: null,
+      loginUrl: null,
+      deviceCode: null,
     };
     this.bump();
     try {
-      await this.spawnGrokLogin();
-      if (!this.client.rpc) {
-        await this.reconnectAgent();
-      }
+      const tokens = await loginWithXaiOAuth({
+        signal,
+        onProgress: (progress) => {
+          this.auth = {
+            ...this.auth,
+            loginUrl: progress.loginUrl ?? this.auth.loginUrl,
+            deviceCode: progress.deviceCode ?? this.auth.deviceCode,
+          };
+          this.bump();
+        },
+        openUrl: (url) => {
+          if (isHttpUrl(url)) void shell.openExternal(url);
+        },
+      });
+      persistOidcTokens(tokens);
+      if (!this.client.rpc) await this.reconnectAgent();
       let ok = await this.applyCachedAuth();
       if (!ok) {
         await this.reconnectAgent();
         ok = await this.applyCachedAuth();
       }
-      if (!ok) {
-        throw new Error("Grok CLI login finished, but the agent could not use the new credentials.");
-      }
+      if (!ok) throw new Error("Signed in, but the agent could not use the new credentials.");
       await this.hydrateAfterAuth();
-      this.auth = { ...this.auth, signingIn: false, error: null };
+      this.auth = { ...this.auth, signingIn: false, error: null, loginUrl: null, deviceCode: null };
     } catch (err) {
       const message = err instanceof Error ? err.message : grokError(err);
       if (reauth && (await this.applyCachedAuth())) {
@@ -1492,72 +1503,10 @@ export class AppStore extends EventEmitter {
           deviceCode: this.auth.deviceCode,
         });
       }
+    } finally {
+      if (this.loginAbort?.signal === signal) this.loginAbort = null;
     }
     this.bump();
-  }
-
-  private spawnGrokLogin(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.loginCancelled) {
-        reject(new Error("Sign-in cancelled."));
-        return;
-      }
-      const env: NodeJS.ProcessEnv = { ...process.env };
-      delete env.ELECTRON_RUN_AS_NODE;
-      const child = spawn(this.client.grokBin, ["login"], {
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-      this.loginChild = child;
-      let output = "";
-      let settled = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const finish = (fn: () => void) => {
-        if (settled) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        this.loginChild = null;
-        fn();
-      };
-      const onData = (buf: Buffer | string) => {
-        output += typeof buf === "string" ? buf : buf.toString("utf8");
-        const parsed = parseGrokLoginOutput(output);
-        let changed = false;
-        if (parsed.url && parsed.url !== this.auth.loginUrl) {
-          this.auth = { ...this.auth, loginUrl: parsed.url };
-          changed = true;
-        }
-        if (parsed.deviceCode && parsed.deviceCode !== this.auth.deviceCode) {
-          this.auth = { ...this.auth, deviceCode: parsed.deviceCode };
-          changed = true;
-        }
-        if (changed) this.bump();
-      };
-      child.stdout?.on("data", onData);
-      child.stderr?.on("data", onData);
-      timer = setTimeout(() => {
-        child.kill();
-        finish(() => reject(new Error("Grok CLI login timed out. Try again.")));
-      }, LOGIN_TIMEOUT_MS);
-      child.once("error", (err) => {
-        finish(() => reject(new Error(grokError(err))));
-      });
-      child.once("exit", (code) => {
-        finish(() => {
-          if (this.loginCancelled) {
-            reject(new Error("Sign-in cancelled."));
-            return;
-          }
-          if (code === 0) {
-            resolve();
-            return;
-          }
-          const detail = output.trim();
-          reject(new Error(detail || `grok login exited (${code ?? "unknown"})`));
-        });
-      });
-    });
   }
 
   private applyInitializeResult(init: unknown): void {

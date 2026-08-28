@@ -841,6 +841,7 @@ export default function App() {
         loginUrl={state.auth.loginUrl}
         onCancel={signingIn ? () => void api.cancelLogin() : undefined}
         onOpenUrl={(url) => void api.openExternal(url)}
+        onCopyCode={(code) => void api.copyText(code)}
       />
     );
   }

@@ -39,7 +39,7 @@ export function SignInView({
         </div>
         <div className="sign-in__eyebrow">Grok Build</div>
         <h1>Sign in to Grok</h1>
-        <p>Paste an API key from console.x.ai, or sign in with the Grok CLI in your browser.</p>
+        <p>Paste an API key from console.x.ai, or sign in with your Grok account in the browser.</p>
         {error ? <div className="sign-in__error">{error}</div> : null}
         <form className="sign-in__key" onSubmit={onSubmitKey}>
           <label className="sign-in__key-label" htmlFor="sign-in-api-key">

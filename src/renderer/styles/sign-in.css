@@ -101,6 +101,7 @@
   font-size: 22px;
   font-weight: 650;
   letter-spacing: 0.12em;
+  cursor: pointer;
 }
 
 .sign-in__error {

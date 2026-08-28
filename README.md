@@ -53,9 +53,10 @@ npm run dev
 ```
 
 If you are not already signed in, the app shows a sign-in screen. Paste an
-API key from [console.x.ai](https://console.x.ai), or sign in with the Grok
-CLI in your browser (`grok login`). After that, open a folder with
-**File → Open Folder** (⌘O), then **New thread**.
+API key from [console.x.ai](https://console.x.ai), or sign in with your Grok
+account in the browser. Tokens are stored in `~/.grok/auth.json` for the Grok
+CLI. After that, open a folder with **File → Open Folder** (⌘O), then **New
+thread**.
 
 | Shortcut | Action |
 | --- | --- |

@@ -4,12 +4,14 @@ export function AuthLoader({
   loginUrl,
   onCancel,
   onOpenUrl,
+  onCopyCode,
 }: {
   readonly label: string;
   readonly deviceCode?: string | null;
   readonly loginUrl?: string | null;
   readonly onCancel?: () => void;
   readonly onOpenUrl?: (url: string) => void;
+  readonly onCopyCode?: (code: string) => void;
 }) {
   const actions = Boolean(onCancel || (loginUrl && onOpenUrl));
   return (
@@ -18,9 +20,15 @@ export function AuthLoader({
         <div className="auth-loader__spinner" aria-hidden="true" />
         <p className="auth-loader__label">{label}</p>
         {deviceCode ? (
-          <div className="sign-in__code" data-testid="sign-in-device-code">
+          <button
+            className="sign-in__code"
+            type="button"
+            data-testid="sign-in-device-code"
+            title="Copy code"
+            onClick={() => onCopyCode?.(deviceCode)}
+          >
             {deviceCode}
-          </div>
+          </button>
         ) : null}
         {actions ? (
           <div className="auth-loader__actions">
