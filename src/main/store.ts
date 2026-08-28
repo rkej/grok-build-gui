@@ -3,14 +3,18 @@ import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import path from "node:path";
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { GrokAcpClient } from "../acp/client.js";
 import { AcpMethod } from "../acp/methods.js";
 import type { JsonRpcMessage } from "../acp/rpc.js";
 import { asArray, unwrap } from "../shared/acp-util.js";
-import { authFromAuthenticateResult, checkingAuth, isAuthError, normalizeApiKey, parseGrokLoginOutput, signedOutAuth } from "../shared/auth.js";
+import { shell } from "electron";
+import { isHttpUrl } from "../shared/url.js";
+import { authFromAuthenticateResult, checkingAuth, isAuthError, normalizeApiKey, signedOutAuth } from "../shared/auth.js";
 import { applyStoredApiKey, persistApiKey } from "./api-key.js";
+import { persistOidcTokens } from "./auth-file.js";
+import { loginWithXaiOAuth } from "./xai-oauth.js";
 import { rankFileMentions } from "../shared/file-mentions.js";
 import type {
   AppSnapshot,
@@ -93,9 +97,8 @@ export class AppStore extends EventEmitter {
   connected = false;
   grokVersion: string | null = null;
   auth: AuthState = checkingAuth();
-  private loginChild: ChildProcess | null = null;
   private loginPromise: Promise<void> | null = null;
-  private loginCancelled = false;
+  private loginAbort: AbortController | null = null;
   private reconnecting = false;
   cwd = process.cwd();
   models: ModelInfo[] = [];

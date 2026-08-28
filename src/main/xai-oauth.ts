@@ -4,6 +4,7 @@ import { net } from "electron";
 import { isHttpUrl } from "../shared/url.js";
 import {
   base64Url,
+  buildAuthorizeUrl,
   createPkce,
   emailFromIdToken,
   isLoopbackBindError,
@@ -21,6 +22,12 @@ import {
   type XaiOAuthProgress,
   type XaiOAuthTokens,
 } from "./xai-oauth-core.js";
+
+const FORM_HEADERS = {
+  Accept: "application/json",
+  "Content-Type": "application/x-www-form-urlencoded",
+  "User-Agent": "grok-build-gui",
+} as const;
 
 export {
   buildAuthorizeUrl,
