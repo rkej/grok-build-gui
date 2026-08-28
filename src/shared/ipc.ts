@@ -47,6 +47,8 @@ export const ipc = {
   login: "gb:login",
   cancelLogin: "gb:cancel-login",
   loginWithApiKey: "gb:login-api-key",
+  installCli: "gb:install-cli",
+  retryCli: "gb:retry-cli",
   refresh: "gb:refresh",
   openExternal: "gb:open-external",
   openPath: "gb:open-path",

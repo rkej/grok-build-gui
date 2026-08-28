@@ -9,6 +9,7 @@ import { ExtensionsView, type ExtensionsSection } from "./extensions-view";
 import { ForkModal, type ForkEnvironment } from "./fork-modal";
 import { NewThreadView } from "./new-thread-view";
 import { AuthLoader } from "./auth-loader";
+import { CliSetupView } from "./cli-setup-view";
 import { SignInView } from "./sign-in-view";
 import { credentialsPending } from "../shared/auth";
 import { SecondarySurface } from "./secondary-surface";
@@ -824,6 +825,23 @@ export default function App() {
 
   if (!state) {
     return <AuthLoader label="Connecting…" />;
+  }
+
+  if (state.cliInstalling) {
+    return <AuthLoader label="Installing Grok CLI…" />;
+  }
+
+  if (state.cliMissing) {
+    return (
+      <CliSetupView
+        installing={state.cliInstalling}
+        error={state.cliInstallError}
+        onInstall={() => void api.installCli()}
+        onRetry={() => void api.retryCli()}
+        onOpenDocs={() => void api.openExternal("https://docs.x.ai/build/overview")}
+        onCopyCommand={(command) => void api.copyText(command)}
+      />
+    );
   }
 
   if (credentialsPending(state.auth)) {

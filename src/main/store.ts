@@ -56,7 +56,7 @@ import { tryHandleFsRequest } from "./fs-bridge.js";
 import { loadGuiState, saveGuiState } from "./gui-state.js";
 import { pickAllowOption, shouldAutoApprove } from "./permissions.js";
 import { parseExtensionDialog } from "./extension-ui.js";
-import { sessionDir } from "./paths.js";
+import { applyPosixPathDefaults, sessionDir } from "./paths.js";
 import { parseModels, parseSlashCommands, resolveSessionActivity, sessionTitle } from "./session-meta.js";
 import { childSessionStub, listSubagentChildren, parentIdFromDisk, parentIdFromSessionRow } from "./session-parent.js";
 import { canSettleSessionFromNotification, isActiveSessionLoad, isForActiveSession, sessionIdFromParams } from "./session-scope.js";
@@ -76,7 +76,6 @@ import {
 } from "./extensions.js";
 import { createSkill, deleteSkill, discoverSkills, setSkillEnabled } from "./skills.js";
 import { AgentTerminalManager } from "./agent-terminals.js";
-import { applyPosixPathDefaults } from "./paths.js";
 import { grokError, installGrokCli, isMissingGrokBinary } from "./grok-cli.js";
 
 const execFileAsync = promisify(execFile);
