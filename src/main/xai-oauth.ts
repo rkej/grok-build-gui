@@ -121,7 +121,18 @@ function startLoopback(state: string, signal: AbortSignal): Promise<{ code: Prom
       if (authCode) resolveCode(authCode);
       else rejectCode(err ?? cancelledError());
     };
-    const onAbort = () => finish(cancelledError());
+    const onAbort = () => {
+      if (!listening) {
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        const closing = server;
+        server = undefined;
+        closing?.close();
+        rejectListen(cancelledError());
+        return;
+      }
+      finish(cancelledError());
+    };
 
     server = createServer((req, res) => {
       if (settled) {
