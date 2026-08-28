@@ -1,25 +1,20 @@
+import { grokInstallGuidance, GROK_CLI_DOCS_URL } from "../shared/grok-install";
 import { GrokMark } from "./icons";
 
-const INSTALL_COMMAND_UNIX = "curl -fsSL https://x.ai/cli/install.sh | bash";
-const INSTALL_COMMAND_WIN = "irm https://x.ai/cli/install.ps1 | iex";
-
 export function CliSetupView({
-  installing,
+  platform,
   error,
-  onInstall,
   onRetry,
   onOpenDocs,
   onCopyCommand,
 }: {
-  readonly installing: boolean;
+  readonly platform: string;
   readonly error: string | null;
-  readonly onInstall: () => void;
   readonly onRetry: () => void;
-  readonly onOpenDocs: () => void;
+  readonly onOpenDocs: (url: string) => void;
   readonly onCopyCommand: (command: string) => void;
 }) {
-  const win = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
-  const command = win ? INSTALL_COMMAND_WIN : INSTALL_COMMAND_UNIX;
+  const guidance = grokInstallGuidance(platform);
 
   return (
     <div className="shell shell--signin">
@@ -30,34 +25,34 @@ export function CliSetupView({
         <div className="sign-in__eyebrow">Grok Build</div>
         <h1>Install Grok CLI</h1>
         <p>
-          This desktop shell talks to the Grok CLI. Install it once, then this window can sign in and
-          start threads.
+          This desktop shell needs the official Grok CLI. On {guidance.osLabel}, run this in{" "}
+          {guidance.shell}, then come back and click Recheck.
         </p>
         {error ? <div className="sign-in__error">{error}</div> : null}
-        <div className="sign-in__actions">
-          <button
-            className="button button--primary"
-            type="button"
-            disabled={installing}
-            data-testid="cli-setup-install"
-            onClick={onInstall}
-          >
-            {installing ? "Installing…" : "Install Grok CLI"}
-          </button>
-          <button className="button button--secondary" type="button" disabled={installing} onClick={onRetry}>
-            Recheck
-          </button>
-        </div>
         <button
           className="sign-in__command"
           type="button"
           title="Copy install command"
-          onClick={() => onCopyCommand(command)}
+          data-testid="cli-setup-command"
+          onClick={() => onCopyCommand(guidance.command)}
         >
-          {command}
+          {guidance.command}
         </button>
-        <button className="sign-in__console" type="button" onClick={onOpenDocs}>
-          Installation docs
+        <div className="sign-in__actions">
+          <button className="button button--primary" type="button" onClick={() => onCopyCommand(guidance.command)}>
+            Copy command
+          </button>
+          <button className="button button--secondary" type="button" onClick={onRetry}>
+            Recheck
+          </button>
+        </div>
+        <ul className="sign-in__notes">
+          {guidance.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+        <button className="sign-in__console" type="button" onClick={() => onOpenDocs(GROK_CLI_DOCS_URL)}>
+          Grok CLI install docs
         </button>
       </div>
     </div>

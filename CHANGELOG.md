@@ -19,7 +19,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Renderer sandbox, single-instance lock, and http(s)-only window opens
 - PATH defaults so packaged apps still find `~/.grok/bin/grok` and Homebrew
 - Sign-in gate that runs SpaceXAI OAuth in-process (PKCE loopback, device-code fallback) and writes `~/.grok/auth.json`
-- Setup screen to install or recheck the Grok CLI when the binary is missing
+- Setup screen that shows the official Grok CLI install command for the current OS
 - Paste an `XAI_API_KEY` on the sign-in screen (stored owner-only in `~/.grok/gui-api-key`)
 - Thread chat header (workspace · Local/worktree, title, running/relative time)
 - Empty workspace/session canvases matching pi-gui

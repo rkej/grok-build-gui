@@ -827,18 +827,13 @@ export default function App() {
     return <AuthLoader label="Connecting…" />;
   }
 
-  if (state.cliInstalling) {
-    return <AuthLoader label="Installing Grok CLI…" />;
-  }
-
   if (state.cliMissing) {
     return (
       <CliSetupView
-        installing={state.cliInstalling}
+        platform={state.platform}
         error={state.cliInstallError}
-        onInstall={() => void api.installCli()}
         onRetry={() => void api.retryCli()}
-        onOpenDocs={() => void api.openExternal("https://docs.x.ai/build/overview")}
+        onOpenDocs={(url) => void api.openExternal(url)}
         onCopyCommand={(command) => void api.copyText(command)}
       />
     );

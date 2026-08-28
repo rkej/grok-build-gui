@@ -201,6 +201,16 @@
   cursor: pointer;
 }
 
+.sign-in__notes {
+  width: 100%;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
 .sign-in__console {
   margin: 0;
   padding: 0;

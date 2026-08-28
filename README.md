@@ -39,7 +39,7 @@ transcript, tools, approvals, git changes, MCP, models, and usage.
 
 - Node 22+
 - Grok CLI (`~/.grok/bin/grok` or `GROK_BIN`). If it is missing, the app
-  offers to install it.
+  shows the official install command for your OS from [x.ai/cli](https://x.ai/cli).
 - `grok login`, or `XAI_API_KEY`
 
 The packaged app does **not** bundle the Grok CLI. Install and authenticate
