@@ -36,14 +36,14 @@
     "highlight.js": "^11.11.1",
     "node-pty": "^1.1.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
     "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.2.5",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
